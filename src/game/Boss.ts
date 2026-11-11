@@ -70,7 +70,7 @@ void main() {
   float rose = band(r, 0.4 * abs(cos(3.0 * (a - uTime * 0.3))), 0.012) * step(r, 0.42);
   float glow = exp(-r * 4.0) * 0.18;
   vec3 col = uC1 * (rings + dash * 0.7) + uC2 * (rune * 0.8 + hex) + uC3 * rose + uC2 * glow;
-  col *= (1.0 + uFlash * 1.8) * uFade;
+  col *= (0.5 + uFlash * 1.2) * uFade; // kept dim so bullets stay readable in front of it
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;

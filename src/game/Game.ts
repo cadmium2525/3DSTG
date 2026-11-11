@@ -321,11 +321,11 @@ export class Game {
       this.state = 'paused';
       this.audio.setPaused(true);
       this.input.reset();
-      if (!fromUi) this.ui.setPaused(true);
+      this.ui.setPaused(true);
     } else if (!p && this.state === 'paused') {
       this.state = 'playing';
       this.audio.setPaused(false);
-      if (!fromUi) this.ui.setPaused(false);
+      this.ui.setPaused(false);
       this.last = performance.now();
       this.quality.hold();
     }
