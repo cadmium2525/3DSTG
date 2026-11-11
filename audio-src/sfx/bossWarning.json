@@ -1,0 +1,26 @@
+{
+ "//": "Boss approach warning: two-tone alarm over a sub drop, ~2 s.",
+ "mix": [
+  {
+   "preset": "alarm",
+   "length": 1.8,
+   "tone": 0.2,
+   "space": 0.3,
+   "seed": 9
+  },
+  {
+   "preset": "subdrop",
+   "length": 0.6,
+   "gain": -6,
+   "seed": 10
+  },
+  {
+   "preset": "tensionpulse",
+   "length": 0.6,
+   "gain": -10,
+   "seed": 11
+  }
+ ],
+ "maxLen": 2.4,
+ "peak": -2
+}

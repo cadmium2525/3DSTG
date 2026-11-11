@@ -1,0 +1,9 @@
+{
+  "//": "Game over: slow descending motif with a fading downer.",
+  "mix": [
+    { "preset": "gameover", "length": 0.75, "tone": -0.1, "space": 0.4, "seed": 20 },
+    { "preset": "downer", "at": 0.2, "length": 1.2, "tone": -0.4, "space": 0.5, "gain": -12, "seed": 21 }
+  ],
+  "maxLen": 2.8,
+  "peak": -2
+}

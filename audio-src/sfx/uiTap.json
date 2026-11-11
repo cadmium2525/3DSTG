@@ -1,0 +1,11 @@
+{
+  "//": "UI button: soft round tap with a tiny bell top.",
+  "mix": [
+    { "preset": "tap", "pitch": 2, "tone": 0.2, "space": 0.1, "seed": 19 },
+    { "layers": [
+      { "src": "modal", "freq": 2093, "modes": [[1, 0.12, 1], [2.76, 0.05, 0.25]], "amp": { "a": 0.001, "d": 0.15 }, "gain": -9 }
+    ] }
+  ],
+  "maxLen": 0.35,
+  "peak": -5
+}

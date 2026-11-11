@@ -5,7 +5,6 @@
  * Query: ?screen=title|hud|boss|pause|clear|over|settings&hide=1 (for screenshots).
  */
 import { createAudio } from '../src/audio';
-import { renderBgm, renderSfx } from '../src/audio/offline';
 import type { BgmTrack, HudData, SfxName } from '../src/core/types';
 import { PATTERN_NAMES } from '../src/core/types';
 import { createSaveStore } from '../src/save';
@@ -120,14 +119,14 @@ const btn = (label: string, fn: () => void) => {
   dev.appendChild(b);
 };
 for (const k of Object.keys(actions)) btn(k, actions[k]);
-const tracks: BgmTrack[] = ['title', 'stage', 'boss'];
+const tracks: BgmTrack[] = ['title', 'stage', 'midboss', 'boss'];
 for (const tr of tracks)
   btn(`♪${tr}`, () => {
     audio.unlock();
     audio.playBgm(tr);
   });
 btn('♪stop', () => audio.stopBgm());
-const sfxNames: SfxName[] = ['shot', 'enemyHit', 'enemyDown', 'graze', 'playerHit', 'bossWarning', 'bossDown', 'uiTap', 'clear', 'gameOver'];
+const sfxNames: SfxName[] = ['shot', 'enemyHit', 'enemyDown', 'graze', 'playerHit', 'bossWarning', 'midbossDown', 'bossDown', 'uiTap', 'clear', 'gameOver'];
 for (const s of sfxNames)
   btn(s, () => {
     audio.unlock();
@@ -158,4 +157,4 @@ if (params.get('hide')) dev.classList.add('hidden');
 (actions[params.get('screen') ?? 'title'] ?? actions.title)();
 
 // Hooks for automated checks (Playwright).
-Object.assign(window, { __dev: { ui, audio, save, actions, renderBgm, renderSfx, hud } });
+Object.assign(window, { __dev: { ui, audio, save, actions, hud, tracks, sfxNames } });

@@ -1,0 +1,11 @@
+{
+  "//": "Heroine is hit: noticeable crunchy impact with a falling glassy shatter.",
+  "mix": [
+    { "preset": "damage", "punch": 0.9, "seed": 5 },
+    { "preset": "impact", "length": 0.25, "tone": 0.2, "punch": 0.8, "space": 0.2, "gain": -4, "seed": 6 },
+    { "preset": "downer", "length": 0.35, "tone": 0.3, "space": 0.2, "gain": -8, "seed": 7 },
+    { "preset": "glass", "length": 0.5, "pitch": 3, "gain": -10, "at": 0.02, "seed": 8 }
+  ],
+  "maxLen": 1.0,
+  "peak": -1
+}

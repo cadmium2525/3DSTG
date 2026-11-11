@@ -1,0 +1,11 @@
+{
+  "//": "Shot lands on an enemy: dry glassy tick.",
+  "mix": [
+    { "preset": "tap", "pitch": 5, "tone": 0.4, "length": 0.4, "space": 0, "seed": 2 },
+    { "layers": [
+      { "src": "modal", "freq": 1900, "modes": [[1, 0.05, 1], [2.76, 0.03, 0.4]], "amp": { "a": 0.0005, "d": 0.06 }, "gain": -6 }
+    ] }
+  ],
+  "maxLen": 0.15,
+  "peak": -9
+}

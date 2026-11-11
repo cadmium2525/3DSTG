@@ -94,7 +94,7 @@ export interface MidBossPhaseDef {
 export const MIDBOSS = {
   name: '硝子蝶 ルクシア',
   sub: 'MID BOSS — 夜をわたる硝子の翅',
-  maxHp: 300,
+  maxHp: 400,
   /** Fly-in (invulnerable for the first ~60%). */
   enterSec: 2.4,
   /** Pause between the two phases (bullets cleared). */
@@ -114,7 +114,7 @@ export const MIDBOSS = {
         { id: 'aimedBurst', intensity: 0.28 },
       ],
       hpEnd: 0.5,
-      timeout: 8.5,
+      timeout: 8,
     },
     {
       name: '胡蝶の羽ばたき・乱',
@@ -123,7 +123,7 @@ export const MIDBOSS = {
         { id: 'aimedBurst', intensity: 0.5 },
       ],
       hpEnd: 0,
-      timeout: 9.5,
+      timeout: 9,
     },
   ] as MidBossPhaseDef[],
 };

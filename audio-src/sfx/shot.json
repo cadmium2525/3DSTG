@@ -1,0 +1,9 @@
+{
+  "//": "Player shot: very soft airy blip, plays ~8x/sec. Kept quiet (peak -12 dBFS) and short.",
+  "layers": [
+    { "src": "sine", "freq": [[0, 2200], [0.045, 1100, "exp"]], "amp": { "a": 0.001, "h": 0.004, "d": 0.05 }, "gain": 0 },
+    { "src": "tri", "freq": [[0, 4400], [0.03, 2600, "exp"]], "amp": { "a": 0.0008, "d": 0.03 }, "gain": -10 },
+    { "src": "noise", "filter": { "type": "bp", "freq": [[0, 9000], [0.03, 5000, "exp"]], "q": 1.5 }, "amp": { "a": 0.0005, "d": 0.018 }, "gain": -14 }
+  ],
+  "peak": -12
+}

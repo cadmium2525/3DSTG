@@ -1,0 +1,9 @@
+{
+  "//": "Bullet graze: bright crystalline tick.",
+  "layers": [
+    { "src": "modal", "freq": 3951, "modes": [[1, 0.06, 1], [2.0, 0.04, 0.4], [3.01, 0.02, 0.2]], "amp": { "a": 0.0004, "d": 0.08 }, "gain": 0 },
+    { "src": "sine", "freq": [[0, 5200], [0.03, 6400, "exp"]], "amp": { "a": 0.0005, "d": 0.035 }, "gain": -8 },
+    { "src": "noise", "filter": { "type": "hp", "freq": 8000 }, "amp": { "a": 0.0003, "d": 0.01 }, "gain": -16 }
+  ],
+  "peak": -10
+}

@@ -3,6 +3,7 @@
  * exposes debug hooks (window.__bloom) + URL params for automated testing:
  *   ?autostart=1  start immediately      ?invincible=1  no damage
  *   ?boss=1       start at the boss      ?seed=N        deterministic seed
+ *   ?midboss=1    start at the mid-boss
  */
 import { createDanmaku } from './danmaku';
 import { createUI } from './ui';
@@ -58,7 +59,8 @@ game.boot(ui);
 
 if (flag('invincible')) game.setInvincible(true);
 if (flag('boss')) game.bossOnStart = true;
-if (flag('autostart') || flag('boss')) game.start();
+if (flag('midboss')) game.midBossOnStart = true;
+if (flag('autostart') || flag('boss') || flag('midboss')) game.start();
 
 declare global {
   interface Window {
@@ -67,6 +69,7 @@ declare global {
       start(): void;
       setInvincible(on: boolean): void;
       skipToBoss(): void;
+      skipToMidBoss(): void;
       movePlayer(x: number, y: number): void;
       pause(paused: boolean): void;
       breakBossPhase(): void;
@@ -80,6 +83,7 @@ window.__bloom = {
   start: () => game.start(),
   setInvincible: (on) => game.setInvincible(on),
   skipToBoss: () => game.skipToBoss(),
+  skipToMidBoss: () => game.skipToMidBoss(),
   movePlayer: (x, y) => game.movePlayer(x, y),
   pause: (p) => game.setPaused(p),
   breakBossPhase: () => game.breakBossPhase(),

@@ -1,0 +1,59 @@
+{
+ "//": "Boss destroyed: big layered explosion, sub boom, and a shimmering bloom tail.",
+ "mix": [
+  {
+   "preset": "explosion",
+   "length": 0.9,
+   "punch": 1,
+   "tone": 0.1,
+   "space": 0.5,
+   "seed": 14
+  },
+  {
+   "preset": "boom",
+   "length": 0.8,
+   "punch": 0.9,
+   "gain": -3,
+   "seed": 15
+  },
+  {
+   "preset": "explosion",
+   "at": 0.35,
+   "length": 0.7,
+   "pitch": -4,
+   "punch": 0.7,
+   "space": 0.6,
+   "gain": -5,
+   "seed": 16
+  },
+  {
+   "preset": "magic",
+   "at": 0.5,
+   "length": 0.8,
+   "tone": 0.4,
+   "gain": -9,
+   "seed": 17
+  },
+  {
+   "preset": "sparkle",
+   "at": 0.3,
+   "length": 0.8,
+   "tone": 0.5,
+   "gain": -10,
+   "seed": 18
+  }
+ ],
+ "maxLen": 3.6,
+ "peak": -1,
+ "post": [
+  {
+   "type": "gain",
+   "db": 12
+  },
+  {
+   "type": "limiter",
+   "ceiling": -1,
+   "release": 0.25
+  }
+ ]
+}

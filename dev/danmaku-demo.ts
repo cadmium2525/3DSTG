@@ -1,6 +1,6 @@
 /**
  * Danmaku dev page: /dev/danmaku.html
- *   ?pattern=spiralCorridor|petalBloom|rippleRing|constellationRain|aimedBurst|boss  (comma list = simultaneous)
+ *   ?pattern=spiralCorridor|petalBloom|rippleRing|constellationRain|aimedBurst|wingSweep|boss  (comma list = simultaneous)
  *   &intensity=0.5 &seed=1 &quality=2 &duration=15
  *   &auto=1 (dodge bot) | auto=0 (stationary / drag the dot)
  *   &t=6 &hold=1  (pre-simulate 6 s, then freeze — for screenshots)
@@ -14,7 +14,7 @@ import { bossOrigin, DodgeBot, runFairness } from '../src/danmaku/bot';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
-const ALL: PatternId[] = ['spiralCorridor', 'petalBloom', 'rippleRing', 'constellationRain', 'aimedBurst'];
+const ALL: PatternId[] = ['spiralCorridor', 'petalBloom', 'rippleRing', 'constellationRain', 'aimedBurst', 'wingSweep'];
 
 if (q.get('fairness') === '1') {
   const out = document.getElementById('out')!;

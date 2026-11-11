@@ -1,20 +1,64 @@
 /**
- * BLOOM DIVE — Web Audio engine (fully synthesised BGM + SFX).
+ * BLOOM DIVE — Web Audio engine for the pre-rendered BGM / SFX in public/audio/.
  *
- * - The AudioContext is created lazily in unlock(), which must run inside a user gesture.
- * - Everything is a silent no-op before unlock() or when Web Audio is unavailable.
- * - BGM uses a look-ahead scheduler: a 25 ms setInterval schedules notes ~120 ms ahead
- *   on the audio clock, so timing stays tight even with janky frames.
+ * The music and effects are authored as かなでる JSON in audio-src/ and rendered by
+ * audio-src/build.mjs (`npm run audio`), which also writes ./manifest.ts.
+ *
+ * - Files are fetched as soon as createAudio() runs (SFX + title first, the other BGM after),
+ *   but decoded only once the AudioContext exists (created lazily inside unlock()).
+ * - BGM loops sample-accurately with AudioBufferSourceNode.loopStart/loopEnd (the files carry
+ *   periodic padding around the loop, so MP3 encoder delay cannot open a gap), crossfades on
+ *   track changes, and a playBgm() before unlock / before decoding is remembered.
+ * - SFX have per-name voice limits and minimum gaps (shot is spammed ~8x/s).
+ * - Everything is a silent no-op before unlock() or when Web Audio / decoding fails. Never throws.
  */
 import type { AudioEngine, BgmTrack, SfxName } from '../core/types';
-import { buildGraph, SFX_LEVEL, type Graph } from './graph';
-import { createTrackPlayer, TRACKS, type TrackPlayer } from './music';
-import { SFX, SFX_LIMITS } from './sfx';
-import type { Ch } from './synth';
+import { BGM_FILES, SFX_FILES, type BgmFile, type SfxFile } from './manifest';
 
-const LOOKAHEAD = 0.12;
-const TICK_MS = 25;
-const MAX_SFX_VOICES = 16;
+// Compile-time check that the generated manifest covers every track / effect name.
+const BGM: Record<BgmTrack, BgmFile> = BGM_FILES;
+const SFX: Record<SfxName, SfxFile> = SFX_FILES;
+
+/** Mix: BGM files are mastered to about -16 LUFS, SFX peaks are set per effect in audio-src/sfx. */
+const BGM_LEVEL = 0.6;
+const SFX_LEVEL = 0.85;
+const CROSSFADE = 0.7;
+const FADE_IN = 0.06;
+const STOP_FADE = 0.45;
+
+interface SfxRule {
+  /** Max simultaneous voices of this effect (the oldest is cut when exceeded, unless `drop`). */
+  max: number;
+  /** Minimum seconds between two starts. */
+  gap: number;
+  /** Linear gain. */
+  gain: number;
+  /** Random pitch spread in cents (±). */
+  detune: number;
+  /** Duck the BGM by this factor for `duckFor` seconds. */
+  duck?: number;
+  duckFor?: number;
+  /** When at the voice limit, skip the new one instead of cutting the oldest. */
+  drop?: boolean;
+}
+
+const RULES: Record<SfxName, SfxRule> = {
+  shot: { max: 2, gap: 0.05, gain: 1, detune: 25, drop: true },
+  enemyHit: { max: 3, gap: 0.035, gain: 1, detune: 60, drop: true },
+  enemyDown: { max: 4, gap: 0.04, gain: 1, detune: 50 },
+  graze: { max: 3, gap: 0.045, gain: 1, detune: 90, drop: true },
+  playerHit: { max: 1, gap: 0.25, gain: 1, detune: 0, duck: 0.45, duckFor: 0.5 },
+  bossWarning: { max: 1, gap: 1.0, gain: 1, detune: 0, duck: 0.5, duckFor: 1.9 },
+  midbossDown: { max: 1, gap: 0.5, gain: 1, detune: 0, duck: 0.5, duckFor: 1.2 },
+  bossDown: { max: 1, gap: 0.8, gain: 1, detune: 0, duck: 0.35, duckFor: 2.0 },
+  uiTap: { max: 2, gap: 0.05, gain: 1, detune: 0 },
+  clear: { max: 1, gap: 1.0, gain: 1, detune: 0, duck: 0.4, duckFor: 3.0 },
+  gameOver: { max: 1, gap: 1.0, gain: 1, detune: 0, duck: 0.3, duckFor: 2.4 },
+};
+
+/** Background decode order after the requested track. */
+const BGM_ORDER: BgmTrack[] = ['title', 'stage', 'midboss', 'boss'];
+const MAX_SFX_VOICES = 14;
 
 type Ctor = typeof AudioContext;
 
@@ -24,41 +68,161 @@ function getCtor(): Ctor | null {
   return w.AudioContext ?? w.webkitAudioContext ?? null;
 }
 
+function assetUrl(file: string): string {
+  let base = './';
+  try {
+    base = import.meta.env.BASE_URL || './';
+  } catch {
+    /* not under Vite */
+  }
+  const rel = `${base.endsWith('/') ? base : `${base}/`}audio/${file}`;
+  try {
+    return new URL(rel, document.baseURI).href;
+  } catch {
+    return rel;
+  }
+}
+
+/** decodeAudioData with the old callback form (Safari < 14.1) and the promise form. */
+function decode(ctx: AudioContext, data: ArrayBuffer): Promise<AudioBuffer> {
+  return new Promise((resolve, reject) => {
+    try {
+      const p = ctx.decodeAudioData(data, resolve, reject) as Promise<AudioBuffer> | undefined;
+      if (p && typeof p.then === 'function') p.then(resolve, reject);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+/** Seconds of near-silence at the head of a buffer (MP3 decoders that keep encoder delay). */
+function leadIn(buf: AudioBuffer): number {
+  try {
+    const x = buf.getChannelData(0);
+    let peak = 0;
+    for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+    const thr = Math.max(1e-4, peak * 0.01);
+    const lim = Math.min(x.length, Math.round(buf.sampleRate * 0.06));
+    for (let i = 0; i < lim; i++) if (Math.abs(x[i]) > thr) return Math.max(0, i - 8) / buf.sampleRate;
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+interface Voice {
+  src: AudioBufferSourceNode;
+  gain: GainNode;
+  end: number;
+}
+
+interface Playing {
+  track: BgmTrack;
+  src: AudioBufferSourceNode;
+  gain: GainNode;
+  /** ctx time at which loopStart was (or will be) heard: the beat origin. */
+  t0: number;
+  bpm: number;
+}
+
 export function createAudio(): AudioEngine {
   let ctx: AudioContext | null = null;
-  let g: Graph | null = null;
+  let master: GainNode | null = null;
+  let bgmBus: GainNode | null = null;
+  let duckBus: GainNode | null = null;
+  let sfxBus: GainNode | null = null;
   let failed = false;
   let muted = false;
   let paused = false;
   let wanted: BgmTrack | null = null;
-  let cur: TrackPlayer | null = null;
-  let timer: ReturnType<typeof setInterval> | null = null;
-  const sfxCh = new Map<SfxName, Ch>();
-  const sfxEnds = new Map<SfxName, number[]>();
-  const sfxLast = new Map<SfxName, number>();
+  let cur: Playing | null = null;
 
-  const running = () => !!ctx && ctx.state === 'running';
+  /* ---------------- loading ---------------- */
+  const raw = new Map<string, Promise<ArrayBuffer | null>>();
+  const sfxBuf = new Map<SfxName, { buf: AudioBuffer; offset: number }>();
+  const bgmBuf = new Map<BgmTrack, AudioBuffer>();
+  const bgmDecoding = new Map<BgmTrack, Promise<AudioBuffer | null>>();
 
-  function tick() {
-    if (!ctx || !cur) return;
+  function fetchFile(file: string): Promise<ArrayBuffer | null> {
+    let p = raw.get(file);
+    if (!p) {
+      p = (typeof fetch === 'function'
+        ? fetch(assetUrl(file)).then((r) => (r.ok ? r.arrayBuffer() : null))
+        : Promise.resolve(null)
+      ).catch(() => null);
+      raw.set(file, p);
+      // allow a retry later if the network failed
+      p.then((b) => {
+        if (!b) raw.delete(file);
+      });
+    }
+    return p;
+  }
+
+  // Start downloading right away: SFX + title in parallel, then the other BGM one by one.
+  if (typeof window !== 'undefined' && getCtor()) {
+    for (const n of Object.keys(SFX) as SfxName[]) fetchFile(SFX[n].file);
+    let chain = fetchFile(BGM.title.file);
+    for (const t of BGM_ORDER) if (t !== 'title') chain = chain.then(() => fetchFile(BGM[t].file));
+  }
+
+  async function loadSfx(name: SfxName) {
+    if (!ctx || sfxBuf.has(name)) return;
+    const data = await fetchFile(SFX[name].file);
+    if (!data || !ctx) return;
     try {
-      cur.scheduleUntil(ctx.currentTime + LOOKAHEAD, ctx.currentTime);
+      const buf = await decode(ctx, data);
+      sfxBuf.set(name, { buf, offset: leadIn(buf) });
     } catch {
-      /* never let the scheduler throw out of the timer */
+      /* undecodable: stays silent */
     }
+    raw.delete(SFX[name].file); // the compressed bytes are no longer needed
   }
 
-  function ensureTimer(on: boolean) {
-    if (on && !timer) timer = setInterval(tick, TICK_MS);
-    else if (!on && timer) {
-      clearInterval(timer);
-      timer = null;
-    }
+  /** Decode one BGM; decodes run one at a time so a big file never stalls the effects. */
+  let decodeChain: Promise<unknown> = Promise.resolve();
+  function loadBgm(track: BgmTrack): Promise<AudioBuffer | null> {
+    const have = bgmBuf.get(track);
+    if (have) return Promise.resolve(have);
+    let p = bgmDecoding.get(track);
+    if (p) return p;
+    const run = async (): Promise<AudioBuffer | null> => {
+      const data = await fetchFile(BGM[track].file);
+      if (!data || !ctx) return null;
+      try {
+        const buf = await decode(ctx, data);
+        bgmBuf.set(track, buf);
+        return buf;
+      } catch {
+        return null;
+      } finally {
+        raw.delete(BGM[track].file); // decoded (or detached by a failed decode): refetch if needed
+      }
+    };
+    p = decodeChain.then(run, run);
+    decodeChain = p.catch(() => null);
+    bgmDecoding.set(track, p);
+    p.then((b) => {
+      if (!b) bgmDecoding.delete(track);
+    });
+    return p;
   }
 
+  function startLoading() {
+    const names = Object.keys(SFX) as SfxName[];
+    Promise.all(names.map(loadSfx))
+      .then(() => {
+        // the requested track first, then the rest in play order
+        if (wanted) loadBgm(wanted);
+        for (const t of BGM_ORDER) loadBgm(t);
+      })
+      .catch(() => {});
+  }
+
+  /* ---------------- context ---------------- */
   function tryResume() {
     if (!ctx || paused) return;
-    // 'interrupted' (iOS call / Siri) and 'suspended' both need resume() from a gesture.
+    // 'interrupted' (iOS call / Siri) and 'suspended' both need resume(), ideally from a gesture.
     if (ctx.state !== 'running') ctx.resume().catch(() => {});
   }
 
@@ -76,22 +240,26 @@ export function createAudio(): AudioEngine {
       } catch {
         ctx = new C();
       }
-      g = buildGraph(ctx);
-      g.master.gain.value = muted ? 0 : 1;
-      for (const name of Object.keys(SFX) as SfxName[]) {
-        const out = ctx.createGain();
-        out.connect(g.sfx);
-        const rev = SFX_LIMITS[name].rev;
-        if (rev > 0) {
-          const s = ctx.createGain();
-          s.gain.value = rev * SFX_LEVEL;
-          out.connect(s);
-          s.connect(g.reverbIn);
-        }
-        sfxCh.set(name, { ctx, out, noise: g.noise });
-        sfxEnds.set(name, []);
-      }
-      // Any later gesture revives an interrupted / suspended context (iOS).
+      const c = ctx;
+      master = c.createGain();
+      master.gain.value = muted ? 0 : 1;
+      // Gentle safety limiter so stacked explosions over the BGM never clip.
+      const comp = c.createDynamicsCompressor();
+      comp.threshold.value = -8;
+      comp.knee.value = 6;
+      comp.ratio.value = 6;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.2;
+      master.connect(comp);
+      comp.connect(c.destination);
+      duckBus = c.createGain();
+      duckBus.connect(master);
+      bgmBus = c.createGain();
+      bgmBus.gain.value = BGM_LEVEL;
+      bgmBus.connect(duckBus);
+      sfxBus = c.createGain();
+      sfxBus.gain.value = SFX_LEVEL;
+      sfxBus.connect(master);
       const revive = () => tryResume();
       for (const ev of ['pointerdown', 'touchend', 'keydown']) {
         window.addEventListener(ev, revive, { capture: true, passive: true });
@@ -99,34 +267,149 @@ export function createAudio(): AudioEngine {
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) tryResume();
       });
+      startLoading();
       return true;
     } catch {
       failed = true;
       ctx = null;
-      g = null;
       return false;
     }
   }
 
-  function startTrack(track: BgmTrack) {
-    if (!ctx || !g) return;
-    const now = ctx.currentTime;
-    const crossfade = !!cur;
-    if (cur) {
-      const old = cur;
-      const end = old.fadeOut(now, 0.6);
-      setTimeout(() => old.dispose(), (end - now + 3) * 1000);
+  /* ---------------- BGM ---------------- */
+  function fadeOutAndStop(p: Playing, dur: number) {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    try {
+      const g = p.gain.gain;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(g.value, t);
+      g.linearRampToValueAtTime(0, t + dur);
+      p.src.stop(t + dur + 0.05);
+    } catch {
+      try {
+        p.src.stop();
+      } catch {
+        /* already stopped */
+      }
     }
-    cur = createTrackPlayer(g, track, now + 0.08, crossfade ? 0.35 : 0.05);
-    ensureTimer(true);
-    tick();
+    p.src.onended = () => {
+      try {
+        p.src.disconnect();
+        p.gain.disconnect();
+      } catch {
+        /* ignore */
+      }
+    };
   }
 
+  function startTrack(track: BgmTrack, buf: AudioBuffer) {
+    if (!ctx || !bgmBus) return;
+    const f = BGM[track];
+    const now = ctx.currentTime;
+    const crossfade = !!cur;
+    if (cur) fadeOutAndStop(cur, CROSSFADE);
+    cur = null;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    // keep the loop inside the buffer even if a decoder trimmed / padded differently
+    const end = Math.min(f.loopEnd, buf.duration);
+    src.loopStart = Math.min(f.loopStart, Math.max(0, end - 0.1));
+    src.loopEnd = end;
+    const gain = ctx.createGain();
+    const t = now + 0.03;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(1, t + (crossfade ? CROSSFADE * 0.6 : FADE_IN));
+    src.connect(gain);
+    gain.connect(bgmBus);
+    src.start(t, src.loopStart);
+    cur = { track, src, gain, t0: t, bpm: f.bpm };
+  }
+
+  function requestTrack(track: BgmTrack) {
+    if (!ctx) return;
+    const have = bgmBuf.get(track);
+    if (have) {
+      startTrack(track, have);
+      return;
+    }
+    loadBgm(track).then((buf) => {
+      try {
+        if (buf && wanted === track && (!cur || cur.track !== track)) startTrack(track, buf);
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+
+  function duck(amount: number, dur: number) {
+    if (!ctx || !duckBus) return;
+    const g = duckBus.gain;
+    const t = ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(amount, t + 0.04);
+    g.setValueAtTime(amount, t + dur);
+    g.linearRampToValueAtTime(1, t + dur + 0.6);
+  }
+
+  /* ---------------- SFX ---------------- */
+  const voices = new Map<SfxName, Voice[]>();
+  const lastStart = new Map<SfxName, number>();
+  let totalVoices = 0;
+
+  function playSfx(name: SfxName) {
+    if (!ctx || !sfxBus) return;
+    const entry = sfxBuf.get(name);
+    if (!entry) return;
+    const rule = RULES[name];
+    const now = ctx.currentTime;
+    if (now - (lastStart.get(name) ?? -1e9) < rule.gap) return;
+    let list = voices.get(name);
+    if (!list) voices.set(name, (list = []));
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].end <= now) list.splice(i, 1);
+    totalVoices = 0;
+    for (const l of voices.values()) totalVoices += l.length;
+    if (list.length >= rule.max || totalVoices >= MAX_SFX_VOICES) {
+      if (rule.drop || list.length === 0) return;
+      const old = list.shift()!;
+      try {
+        old.gain.gain.setTargetAtTime(0, now, 0.01);
+        old.src.stop(now + 0.06);
+      } catch {
+        /* ignore */
+      }
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = entry.buf;
+    const rate = rule.detune ? Math.pow(2, ((Math.random() * 2 - 1) * rule.detune) / 1200) : 1;
+    src.playbackRate.value = rate;
+    const gain = ctx.createGain();
+    gain.gain.value = rule.gain;
+    src.connect(gain);
+    gain.connect(sfxBus);
+    src.start(now, entry.offset);
+    const v: Voice = { src, gain, end: now + (entry.buf.duration - entry.offset) / rate };
+    list.push(v);
+    lastStart.set(name, now);
+    src.onended = () => {
+      try {
+        src.disconnect();
+        gain.disconnect();
+      } catch {
+        /* ignore */
+      }
+    };
+    if (rule.duck != null && cur) duck(rule.duck, rule.duckFor ?? 0.5);
+  }
+
+  /* ---------------- public ---------------- */
   const engine: AudioEngine = {
     unlock() {
-      if (!create() || !ctx) return;
       try {
-        if (!paused && ctx.state !== 'running') ctx.resume().catch(() => {});
+        if (!create() || !ctx) return;
+        tryResume();
         // Classic iOS unlock: play a 1-sample silent buffer inside the gesture.
         const b = ctx.createBuffer(1, 1, ctx.sampleRate);
         const src = ctx.createBufferSource();
@@ -134,15 +417,15 @@ export function createAudio(): AudioEngine {
         src.connect(ctx.destination);
         src.start(0);
         src.onended = () => src.disconnect();
-        if (wanted && (!cur || cur.name !== wanted)) startTrack(wanted);
+        if (wanted && (!cur || cur.track !== wanted)) requestTrack(wanted);
       } catch {
         /* ignore */
       }
     },
     setMuted(m) {
       muted = m;
-      if (!ctx || !g) return;
-      const p = g.master.gain;
+      if (!ctx || !master) return;
+      const p = master.gain;
       const t = ctx.currentTime;
       try {
         p.cancelScheduledValues(t);
@@ -153,11 +436,12 @@ export function createAudio(): AudioEngine {
       }
     },
     playBgm(track) {
+      if (!BGM[track]) return;
+      if (wanted === track && (!ctx || (cur && cur.track === track))) return;
       wanted = track;
-      if (!ctx || !g) return;
-      if (cur && cur.name === track) return;
+      if (cur && cur.track === track) return;
       try {
-        startTrack(track);
+        requestTrack(track);
       } catch {
         /* ignore */
       }
@@ -167,34 +451,17 @@ export function createAudio(): AudioEngine {
       if (!ctx || !cur) return;
       const old = cur;
       cur = null;
-      ensureTimer(false);
       try {
-        const now = ctx.currentTime;
-        const end = old.fadeOut(now, 0.4);
-        setTimeout(() => old.dispose(), (end - now + 3) * 1000);
+        fadeOutAndStop(old, STOP_FADE);
       } catch {
         /* ignore */
       }
     },
     sfx(name) {
       // Skip when muted (saves CPU) or not running (would burst on resume).
-      if (!ctx || muted || !running()) return;
-      const fn = SFX[name];
-      const ch = sfxCh.get(name);
-      const ends = sfxEnds.get(name);
-      if (!fn || !ch || !ends) return;
-      const now = ctx.currentTime;
-      const lim = SFX_LIMITS[name];
-      if (now - (sfxLast.get(name) ?? -1) < lim.gap) return;
-      // Drop finished voices, then enforce per-name and global caps.
-      for (let i = ends.length - 1; i >= 0; i--) if (ends[i] <= now) ends.splice(i, 1);
-      if (ends.length >= lim.max) return;
-      let total = 0;
-      for (const e of sfxEnds.values()) total += e.length;
-      if (total >= MAX_SFX_VOICES) return;
+      if (!ctx || muted || paused || ctx.state !== 'running') return;
       try {
-        ends.push(fn(ch, now + 0.005));
-        sfxLast.set(name, now);
+        playSfx(name);
       } catch {
         /* ignore */
       }
@@ -211,14 +478,14 @@ export function createAudio(): AudioEngine {
     },
     get beat() {
       if (!ctx || !cur) return 0;
-      // Compensate output latency so beat matches what is heard.
+      // Compensate output latency so the beat matches what is heard.
       const raw = (ctx as AudioContext & { outputLatency?: number }).outputLatency;
       const lat = typeof raw === 'number' && Number.isFinite(raw) ? Math.min(0.2, Math.max(0, raw)) : 0;
-      return Math.max(0, ((ctx.currentTime - lat - cur.startTime) * cur.bpm) / 60);
+      return Math.max(0, ((ctx.currentTime - lat - cur.t0) * cur.bpm) / 60);
     },
     get bpm() {
       if (cur) return cur.bpm;
-      return wanted ? TRACKS[wanted].bpm : 120;
+      return wanted ? BGM[wanted].bpm : 120;
     },
   };
   return engine;

@@ -26,12 +26,15 @@ import { Rng } from './Rng';
 import { Shots, Targets } from './Shots';
 import { Stage } from './Stage';
 import { BOSS, BOSS_SKIP_T, ENEMY_KINDS, SCORE, SHOT } from './StageData';
+import { MidBoss, MidBossState } from './MidBoss';
+import { MIDBOSS, MIDBOSS_SKIP_T } from './StageData';
 
 export type GameState = 'title' | 'playing' | 'paused' | 'result';
 /** Sub-state while playing. */
 type PlayPhase = 'stage' | 'boss' | 'dying' | 'clearing';
 
 const BOSS_ID = MAX_ENEMIES;
+const MIDBOSS_ID = MAX_ENEMIES + 1;
 const MAX_DT = 1 / 20;
 const HUD_INTERVAL = 0.1;
 const PIXEL_RATIO_CAP: Record<QualityLevel, number> = { 0: 1, 1: 1.5, 2: 2 };
@@ -72,6 +75,10 @@ export class Game {
   private enemies: Enemies;
   private boss: Boss;
   private stage: Stage;
+  // Mid-boss (see MidBoss.ts / StageData.MIDBOSS).
+  private midBoss: MidBoss;
+  private hudMid = { name: MIDBOSS.name, hp: 1, pattern: '' as string | undefined };
+  midBossOnStart = false;
 
   // Score / run stats.
   score = 0;
@@ -201,6 +208,8 @@ export class Game {
       },
     });
     scene.add(this.boss.group);
+    this.midBoss = this.createMidBoss();
+    scene.add(this.midBoss.group);
 
     scene.add(this.danmaku.object3d);
 
@@ -218,6 +227,7 @@ export class Game {
         this.audio.stopBgm();
         this.rig.shake(0.08, 1.5);
       },
+      midBoss: () => this.beginMidBoss(),
       boss: () => this.beginBoss(),
     });
 
@@ -260,6 +270,8 @@ export class Game {
     this.danmaku.clear();
     this.enemies.clear();
     this.boss.reset();
+    this.midBoss.reset();
+    this.midBossResult = null;
     this.shots.clear();
   }
 
@@ -304,6 +316,7 @@ export class Game {
     this.audio.playBgm('stage');
     this.hudDirty = true;
     if (this.bossOnStart) this.skipToBoss();
+    else if (this.midBossOnStart) this.skipToMidBoss();
   }
 
   skipToBoss(): void {
@@ -312,6 +325,7 @@ export class Game {
     this.enemies.clear();
     this.danmaku.stopAllPatterns();
     this.danmaku.clear();
+    this.midBoss.reset(); // skipping to the boss also skips the mid-boss
     this.stage.jumpTo(BOSS_SKIP_T);
   }
 
@@ -409,6 +423,7 @@ export class Game {
 
   private onShotHit = (id: number, x: number, y: number, z: number): void => {
     if (id === BOSS_ID) this.boss.damage(SHOT.damage, x, y, z);
+    else if (id === MIDBOSS_ID) this.midBoss.damage(SHOT.damage, x, y, z);
     else this.enemies.damage(id, SHOT.damage);
   };
 
@@ -428,6 +443,7 @@ export class Game {
     if (dead) {
       this.danmaku.stopAllPatterns();
       this.boss.freeze();
+      this.midBoss.freeze();
       this.effects.burst(p.x, p.y, p.z, PALETTE.cyan, 60, 12, 0.4, 1.2);
       this.effects.ring(p.x, p.y, p.z, PALETTE.white, 6, 0.9);
       this.rig.shake(0.6, 2.5);
@@ -436,7 +452,7 @@ export class Game {
   }
 
   private onGraze(n: number): void {
-    const bossMul = this.phase === 'boss' ? SCORE.grazeBossMul : 1;
+    const bossMul = this.phase === 'boss' || this.midBoss.active ? SCORE.grazeBossMul : 1;
     const fastMul = this.player.slow ? 1 : SCORE.grazeFastMul;
     for (let i = 0; i < n; i++) {
       if (this.playTime - this.lastGrazeT < SCORE.grazeChainWindow) this.grazeChain++;
@@ -506,12 +522,14 @@ export class Game {
       this.targets.begin();
       this.enemies.addTargets(this.targets);
       this.boss.addTargets(this.targets, BOSS_ID);
+      this.midBoss.addTargets(this.targets, MIDBOSS_ID);
       const firing = p.alive && (this.phase === 'stage' || this.phase === 'boss') && this.playTime > 0.8 && !this.intro.busy;
       const volleys = this.shots.update(dt, firing, p.position, this.targets, this.onShotHit);
       if (volleys > 0) this.sfx('shot', 0.11);
 
       this.enemies.update(dt, this.phase === 'stage' || this.phase === 'boss');
       this.boss.update(dt);
+      this.midBoss.update(dt);
 
       // God mode (debug) still collides so grazes count; hits are ignored.
       const collide = p.alive && p.invincible <= 0 && (this.phase === 'stage' || this.phase === 'boss');
@@ -526,6 +544,7 @@ export class Game {
     } else {
       this.enemies.update(dt, false);
       this.boss.update(dt);
+      this.midBoss.update(dt);
       this.danmaku.update(dt, p.position, false);
     }
 
@@ -555,6 +574,9 @@ export class Game {
     if (this.boss.active && this.boss.state !== BossState.Dying) {
       this.hudBoss.hp = this.boss.hp;
       h.boss = this.hudBoss;
+    } else if (this.midBoss.active && this.midBoss.state !== MidBossState.Dying) {
+      this.hudMid.hp = this.midBoss.hp;
+      h.boss = this.hudMid;
     } else {
       h.boss = null;
     }
@@ -595,7 +617,7 @@ export class Game {
     const b = this.boss;
     return {
       state: this.state,
-      phase: this.phase,
+      phase: this.phase === 'stage' && this.midBoss.active ? 'midboss' : this.phase,
       score: this.score,
       lives: this.player.lives,
       graze: this.graze,
@@ -603,6 +625,10 @@ export class Game {
       stageTime: Math.round(this.stage.t * 100) / 100,
       bossHp: b.active ? Math.round(b.hp * 1000) / 1000 : null,
       bossPhase: b.active ? b.phaseIndex : null,
+      midBossHp: this.midBoss.active ? Math.round(this.midBoss.hp * 1000) / 1000 : null,
+      midBossPhase: this.midBoss.active ? this.midBoss.phaseIndex : null,
+      midBossState: this.midBoss.active ? MidBossState[this.midBoss.state] : null,
+      midBossResult: this.midBossResult,
       enemies: this.enemies.activeCount,
       bullets: this.danmaku.activeCount,
       fps: Math.round(this.quality.fps),
@@ -620,8 +646,83 @@ export class Game {
     this.player.position.y = Math.max(-FIELD.halfH, Math.min(FIELD.halfH, y));
   }
 
-  /** Debug: break the current boss phase. */
+  /** Debug: break the current boss (or mid-boss) phase. */
   breakBossPhase(): void {
-    this.boss.forceBreak();
+    if (!this.midBoss.forceBreak()) this.boss.forceBreak();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Mid-boss (StageData.MIDBOSS; the stage timeline waits while it lives) */
+  /* ------------------------------------------------------------------ */
+
+  /** 'defeated' / 'escaped' once this run's mid-boss is over (debug / tests). */
+  private midBossResult: null | 'defeated' | 'escaped' = null;
+
+  private createMidBoss(): MidBoss {
+    return new MidBoss(this.danmaku, this.effects, this.rng, {
+      onPhaseStart: (i) => {
+        const def = MIDBOSS.phases[i];
+        this.ui.announce(def.name, `MID BOSS  ${i + 1} / ${MIDBOSS.phases.length}`);
+        this.hudMid.pattern = def.name;
+        this.hudDirty = true;
+      },
+      onPhaseEnd: (i, broken, cancelled) => {
+        // Timeout = no bonus at all (it is about to fly away / change phase on its own).
+        if (broken) {
+          const last = i >= MIDBOSS.phases.length - 1;
+          this.addScore(cancelled * SCORE.bulletCancel + (last ? 0 : SCORE.midBossPhaseBreak));
+          this.rig.shake(0.14);
+        }
+        this.hudMid.pattern = undefined;
+        this.hudDirty = true;
+        const p = this.midBoss.position;
+        this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 14, 0.6);
+      },
+      onDefeated: () => {
+        this.sfx('midbossDown');
+        this.rig.shake(0.42, 3);
+        this.danmaku.clear();
+        this.addScore(SCORE.midBossKill);
+        this.ui.announce('MID BOSS DEFEATED', `+${SCORE.midBossKill.toLocaleString()}`);
+        this.endMidBoss('defeated');
+      },
+      onEscaped: () => {
+        this.ui.announce('ESCAPED', 'ルクシアは夜空の彼方へ');
+        this.endMidBoss('escaped');
+      },
+      onHit: (x, y, z, damaged) => {
+        if (damaged) this.addScore(SCORE.midBossHit);
+        this.effects.burst(x, y, z + 1, damaged ? PALETTE.cyan : PALETTE.purple, 2, 7, 0.4, 0.25);
+        this.sfx('enemyHit', 0.07);
+      },
+    });
+  }
+
+  private beginMidBoss(): void {
+    this.enemies.retreatAll();
+    this.midBoss.spawn();
+    this.midBossResult = null;
+    this.audio.playBgm('midboss');
+    this.ui.announce(MIDBOSS.name, MIDBOSS.sub);
+    this.hudMid.pattern = undefined;
+    this.hudDirty = true;
+  }
+
+  private endMidBoss(result: 'defeated' | 'escaped'): void {
+    this.midBossResult = result;
+    this.hudDirty = true;
+    if (this.phase !== 'stage') return; // player died meanwhile
+    this.audio.playBgm('stage');
+    this.stage.resume();
+  }
+
+  /** Debug: jump to the mid-boss (starts a run when needed). */
+  skipToMidBoss(): void {
+    if (this.state !== 'playing' && this.state !== 'paused') this.start();
+    if (this.phase !== 'stage' || this.midBoss.active) return;
+    this.enemies.clear();
+    this.danmaku.stopAllPatterns();
+    this.danmaku.clear();
+    this.stage.jumpTo(MIDBOSS_SKIP_T);
   }
 }

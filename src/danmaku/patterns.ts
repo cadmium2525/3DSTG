@@ -572,8 +572,8 @@ class WingSweep extends Emitter {
         const isEdge = edge < gapW * 0.5 + spacing;
         sp.T = this.flightT;
         sp.r0 = 0.5 * Math.sqrt(x * x + y * y) + 1.4;
-        sp.size = isEdge ? 1.3 : 1.05;
-        if (isEdge) setColor(sp, COL.gold, 0.15);
+        sp.size = isEdge ? 1.3 : 1.0;
+        if (isEdge) setColor(sp, COL.gold);
         else if (j === 0 || j === n - 1) setColor(sp, COL.pink);
         else setColor(sp, col);
         spawnAt(ctx, x, y);

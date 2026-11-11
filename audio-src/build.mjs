@@ -48,6 +48,7 @@ if (!DAW) {
 const eng = (f) => import(pathToFileURL(join(DAW, 'daw/js/engine', f)).href);
 const { renderSong, autoMix } = await eng('mix.js');
 const { renderAnySfx } = await eng('sfx.js');
+const { applyChain } = await eng('fx.js');
 const { analyzeAudio, reportText, loudness, truePeak } = await eng('analyze.js');
 const { encodeWav } = await eng('wav.js');
 const { validateSong } = await eng('validate.js');
@@ -137,7 +138,7 @@ for (const id of bgmIds.filter(want)) {
     const auto = autoMix(song);
     for (const tr of song.tracks) {
       const k = tr.id;
-      if (auto[k] != null) tr.volume = Math.round((auto[k] + (tr.trim ?? 0)) * 2) / 2;
+      if (auto[k] != null) tr.volume = Math.max(-30, Math.min(6, Math.round((auto[k] + (tr.trim ?? 0)) * 2) / 2));
       delete tr.trim;
     }
     writeFileSync(jsonPath, pretty(song) + '\n');
@@ -176,8 +177,10 @@ for (const id of bgmIds.filter(want)) {
 
   // decode the MP3 back and check the loop region really wraps seamlessly
   const [DL] = decodeAudio(file, SR);
-  let seamErr = 0;
-  for (let k = -200; k < 200; k++) seamErr = Math.max(seamErr, Math.abs(DL[p + n + k] - DL[p + k]));
+  // wrap step (end -> start) compared with the largest natural sample step around both points
+  const wrapStep = Math.abs(DL[p] - DL[p + n - 1]);
+  let localStep = 0;
+  for (let k = -200; k < 200; k++) localStep = Math.max(localStep, Math.abs(DL[p + k] - DL[p + k - 1]), Math.abs(DL[p + n + k] - DL[p + n + k - 1]));
 
   const lu = loudness(L, R, SR);
   const entry = {
@@ -194,7 +197,7 @@ for (const id of bgmIds.filter(want)) {
   };
   manifest.bgm[id] = entry;
   console.log(`♪ ${id.padEnd(8)} ${song.bpm} bpm ${song.bars} bars loop ${loopSec.toFixed(3)}s  ${entry.lufs} LUFS  TP ${entry.truePeak} dBTP  ` +
-    `seam jump ${jump.toFixed(4)} (max step ${typ.toFixed(3)}) rms ${rmsBefore.toFixed(1)}/${rmsAfter.toFixed(1)} dB  mp3 seam err ${seamErr.toFixed(4)}  ` +
+    `seam jump ${jump.toFixed(4)} (max step ${typ.toFixed(3)}) rms ${rmsBefore.toFixed(1)}/${rmsAfter.toFixed(1)} dB  mp3 wrap step ${wrapStep.toFixed(4)} (local max ${localStep.toFixed(4)})  ` +
     `${(entry.bytes / 1024).toFixed(0)} KB  (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
   if (has('--report') || has('--sheet')) {
     const a = analyzeAudio(L, R, SR, { bpm: song.bpm, beatsPerBar: bpb, targetLufs: song.master?.loudness ?? -14 });
@@ -210,8 +213,10 @@ for (const id of bgmIds.filter(want)) {
 /*
  * An SFX JSON is a かなでる effect (preset or layers) or a layered mix of them:
  *   { "mix": [ { "preset": "laser", "at": 0, "gain": -3 }, { "layers": [...] } ],
+ *     "post": [ { "type": "gain", "db": 6 }, { "type": "limiter", "ceiling": -1 } ],
  *     "peak": -1, "maxLen": 2 }
- * peak = final peak (dBFS) — sets the relative level of the effects in the game.
+ * post = かなでる effect chain applied to the layered result; peak = final peak (dBFS),
+ * which sets the relative level of the effects in the game.
  */
 const sfxDir = join(HERE, 'sfx');
 for (const f of readdirSync(sfxDir).filter((f) => f.endsWith('.json')).sort()) {
@@ -228,9 +233,12 @@ for (const f of readdirSync(sfxDir).filter((f) => f.endsWith('.json')).sort()) {
     const g = 10 ** (gain / 20);
     for (let i = 0; i < pl.length; i++) { L[s0 + i] += pl[i] * g; R[s0 + i] += pr[i] * g; }
   }
+  // optional post chain on the layered result (e.g. gain + limiter for more weight)
+  if (spec.post) applyChain(spec.post, L, R, { sr: SR, bpm: 120, timeAt: (i) => i / SR, start: 0 });
   // mono, trim, peak
   let len = L.length;
-  if (spec.maxLen) len = Math.min(len, Math.round(spec.maxLen * SR));
+  const truncated = spec.maxLen && spec.maxLen * SR < len;
+  if (truncated) len = Math.round(spec.maxLen * SR);
   const M = new Float32Array(len);
   for (let i = 0; i < len; i++) M[i] = (L[i] + R[i]) * 0.5;
   let pk = 0;
@@ -240,7 +248,7 @@ for (const f of readdirSync(sfxDir).filter((f) => f.endsWith('.json')).sort()) {
   let last = len - 1;
   while (last > 0 && Math.abs(M[last]) < target * 10 ** (-54 / 20)) last--;
   len = Math.min(len, last + Math.round(0.01 * SR));
-  const fade = Math.min(len, Math.round(0.012 * SR));
+  const fade = Math.min(len, Math.round((truncated && last >= len - 2 ? 0.2 : 0.012) * SR));
   for (let i = 0; i < fade; i++) M[len - 1 - i] *= i / fade;
   const Mo = M.subarray(0, len);
   const file = join(OUT, 'sfx', `${id}.mp3`);

@@ -1,7 +1,43 @@
 {
   "bgm": {
+    "boss": {
+      "file": "bgm/boss.mp3?v=c57032ad",
+      "bpm": 170,
+      "beatsPerBar": 4,
+      "bars": 40,
+      "loopStart": 0.25,
+      "loopEnd": 56.720588,
+      "duration": 56.9706,
+      "lufs": -16,
+      "truePeak": -1.79,
+      "bytes": 912448
+    },
+    "midboss": {
+      "file": "bgm/midboss.mp3?v=92aebfcb",
+      "bpm": 160,
+      "beatsPerBar": 4,
+      "bars": 24,
+      "loopStart": 0.25,
+      "loopEnd": 36.25,
+      "duration": 36.5,
+      "lufs": -16,
+      "truePeak": -1.64,
+      "bytes": 585186
+    },
+    "stage": {
+      "file": "bgm/stage.mp3?v=db4578eb",
+      "bpm": 150,
+      "beatsPerBar": 4,
+      "bars": 36,
+      "loopStart": 0.25,
+      "loopEnd": 57.85,
+      "duration": 58.1,
+      "lufs": -16,
+      "truePeak": -1.62,
+      "bytes": 930839
+    },
     "title": {
-      "file": "bgm/title.mp3?v=63da7225",
+      "file": "bgm/title.mp3?v=b8ebc508",
       "bpm": 88,
       "beatsPerBar": 4,
       "bars": 16,
@@ -9,9 +45,87 @@
       "loopEnd": 43.886364,
       "duration": 44.1364,
       "lufs": -16.9,
-      "truePeak": -3.59,
+      "truePeak": -3.53,
       "bytes": 707231
     }
   },
-  "sfx": {}
+  "sfx": {
+    "bossDown": {
+      "file": "sfx/bossDown.mp3?v=f69fc5d2",
+      "duration": 2.705,
+      "peak": -1,
+      "lufs": -10.4,
+      "bytes": 33272
+    },
+    "bossWarning": {
+      "file": "sfx/bossWarning.mp3?v=25eff698",
+      "duration": 1.94,
+      "peak": -2,
+      "lufs": -8.3,
+      "bytes": 24182
+    },
+    "clear": {
+      "file": "sfx/clear.mp3?v=1ab33426",
+      "duration": 3.4,
+      "peak": -1,
+      "lufs": -11.1,
+      "bytes": 41736
+    },
+    "enemyDown": {
+      "file": "sfx/enemyDown.mp3?v=c1528267",
+      "duration": 0.509,
+      "peak": -4,
+      "lufs": -19.6,
+      "bytes": 6941
+    },
+    "enemyHit": {
+      "file": "sfx/enemyHit.mp3?v=6a67f71a",
+      "duration": 0.051,
+      "peak": -9,
+      "lufs": -25.2,
+      "bytes": 1298
+    },
+    "gameOver": {
+      "file": "sfx/gameOver.mp3?v=d0445bdb",
+      "duration": 2.321,
+      "peak": -2,
+      "lufs": -8.2,
+      "bytes": 28570
+    },
+    "graze": {
+      "file": "sfx/graze.mp3?v=dae532d8",
+      "duration": 0.068,
+      "peak": -10,
+      "lufs": -22.3,
+      "bytes": 1612
+    },
+    "midbossDown": {
+      "file": "sfx/midbossDown.mp3?v=5ed88c94",
+      "duration": 2,
+      "peak": -1,
+      "lufs": -8.9,
+      "bytes": 24809
+    },
+    "playerHit": {
+      "file": "sfx/playerHit.mp3?v=91608589",
+      "duration": 0.593,
+      "peak": -1,
+      "lufs": -13.2,
+      "bytes": 7881
+    },
+    "shot": {
+      "file": "sfx/shot.mp3?v=929d5c54",
+      "duration": 0.057,
+      "peak": -12,
+      "lufs": -23.1,
+      "bytes": 1612
+    },
+    "uiTap": {
+      "file": "sfx/uiTap.mp3?v=6fcbef42",
+      "duration": 0.123,
+      "peak": -5,
+      "lufs": -20,
+      "bytes": 2239
+    }
+  }
 }

@@ -1,0 +1,104 @@
+{
+ "//": "Mid-boss destroyed: medium explosion with a bright two-note chime on top.",
+ "mix": [
+  {
+   "preset": "explosion",
+   "length": 0.45,
+   "punch": 0.8,
+   "tone": 0.2,
+   "space": 0.4,
+   "seed": 12
+  },
+  {
+   "preset": "impact",
+   "length": 0.4,
+   "punch": 0.7,
+   "space": 0.4,
+   "gain": -6,
+   "seed": 13
+  },
+  {
+   "at": 0.08,
+   "layers": [
+    {
+     "src": "modal",
+     "freq": 1318.5,
+     "modes": [
+      [
+       1,
+       1.0,
+       1
+      ],
+      [
+       2.76,
+       0.4,
+       0.3
+      ],
+      [
+       5.4,
+       0.18,
+       0.1
+      ]
+     ],
+     "amp": {
+      "a": 0.002,
+      "h": 0.9,
+      "d": 0.4
+     },
+     "gain": -6,
+     "pan": -0.2
+    },
+    {
+     "at": 0.12,
+     "src": "modal",
+     "freq": 1975.5,
+     "modes": [
+      [
+       1,
+       1.0,
+       1
+      ],
+      [
+       2.76,
+       0.4,
+       0.3
+      ],
+      [
+       5.4,
+       0.18,
+       0.1
+      ]
+     ],
+     "amp": {
+      "a": 0.002,
+      "h": 0.9,
+      "d": 0.5
+     },
+     "gain": -7,
+     "pan": 0.2
+    }
+   ],
+   "fx": [
+    {
+     "type": "reverb",
+     "size": 1.5,
+     "decay": 2,
+     "mix": 0.3
+    }
+   ]
+  }
+ ],
+ "maxLen": 2.0,
+ "peak": -1,
+ "post": [
+  {
+   "type": "gain",
+   "db": 4
+  },
+  {
+   "type": "limiter",
+   "ceiling": -1,
+   "release": 0.2
+  }
+ ]
+}

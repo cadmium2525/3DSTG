@@ -1,0 +1,82 @@
+{
+ "//": "Small enemy destroyed: punchy pop + short crunchy burst + glitter.",
+ "mix": [
+  {
+   "preset": "pop",
+   "pitch": -3,
+   "punch": 0.8,
+   "seed": 3
+  },
+  {
+   "preset": "explosion",
+   "length": 0.18,
+   "tone": 0.3,
+   "punch": 0.5,
+   "space": 0.1,
+   "gain": -5,
+   "seed": 4
+  },
+  {
+   "layers": [
+    {
+     "src": "modal",
+     "freq": 2637,
+     "modes": [
+      [
+       1,
+       0.25,
+       1
+      ],
+      [
+       2.76,
+       0.1,
+       0.3
+      ]
+     ],
+     "amp": {
+      "a": 0.001,
+      "d": 0.3
+     },
+     "gain": -10,
+     "pan": 0.2
+    },
+    {
+     "at": 0.05,
+     "src": "modal",
+     "freq": 3520,
+     "modes": [
+      [
+       1,
+       0.2,
+       1
+      ],
+      [
+       2.76,
+       0.08,
+       0.3
+      ]
+     ],
+     "amp": {
+      "a": 0.001,
+      "d": 0.25
+     },
+     "gain": -13,
+     "pan": -0.2
+    }
+   ]
+  }
+ ],
+ "maxLen": 0.7,
+ "peak": -4,
+ "post": [
+  {
+   "type": "gain",
+   "db": 5
+  },
+  {
+   "type": "limiter",
+   "ceiling": -1,
+   "release": 0.08
+  }
+ ]
+}
