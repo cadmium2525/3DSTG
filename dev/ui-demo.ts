@@ -20,7 +20,7 @@ const log = (s: string) => {
 };
 
 let hudTimer = 0;
-const hud: HudData = { score: 0, hiScore: save.hiScore, lives: 3, graze: 0, boss: null };
+const hud: HudData = { score: 0, hiScore: save.hiScore, lives: 3, graze: 0, bombs: 2, power: 1, powerProgress: 0, boss: null };
 
 const ui = createUI(document.getElementById('ui-root')!, {
   onStart() {
@@ -49,6 +49,14 @@ const ui = createUI(document.getElementById('ui-root')!, {
     log(`settings ${JSON.stringify(save.settings)}`);
     audio.setMuted(save.settings.muted);
   },
+  onBomb() {
+    log('onBomb');
+    if (hud.bombs > 0) {
+      hud.bombs--;
+      audio.sfx('bomb');
+      ui.updateHud(hud);
+    }
+  },
 }, save);
 
 function stopHud() {
@@ -58,7 +66,7 @@ function stopHud() {
 
 function startHud(withBoss: boolean) {
   stopHud();
-  Object.assign(hud, { score: 0, lives: 3, graze: 0, boss: null, hiScore: save.hiScore });
+  Object.assign(hud, { score: 0, lives: 3, graze: 0, bombs: 2, power: 1, powerProgress: 0, boss: null, hiScore: save.hiScore });
   ui.showHud();
   if (withBoss) hud.boss = { name: '星環の魔女 アストレア', hp: 1, pattern: PATTERN_NAMES.spiralCorridor };
   ui.updateHud(hud);
@@ -71,6 +79,17 @@ function startHud(withBoss: boolean) {
       ui.pulseGraze();
     }
     hud.hiScore = Math.max(hud.hiScore, hud.score);
+    // Power creeps up Lv1 → Lv4, then starts over.
+    if (hud.power < 4) {
+      hud.powerProgress += 0.04;
+      if (hud.powerProgress >= 1) {
+        hud.power++;
+        hud.powerProgress = hud.power >= 4 ? 1 : 0;
+      }
+    } else if (t % 80 === 0) {
+      hud.power = 1;
+      hud.powerProgress = 0;
+    }
     if (hud.boss) {
       hud.boss.hp = Math.max(0, hud.boss.hp - 0.01);
       if (hud.boss.hp <= 0) hud.boss.hp = 1;
@@ -126,7 +145,7 @@ for (const tr of tracks)
     audio.playBgm(tr);
   });
 btn('♪stop', () => audio.stopBgm());
-const sfxNames: SfxName[] = ['shot', 'enemyHit', 'enemyDown', 'graze', 'playerHit', 'bossWarning', 'midbossDown', 'bossDown', 'uiTap', 'clear', 'gameOver'];
+const sfxNames: SfxName[] = ['shot', 'enemyHit', 'enemyDown', 'graze', 'playerHit', 'bossWarning', 'midbossDown', 'bossDown', 'uiTap', 'clear', 'gameOver', 'itemScore', 'itemPower', 'powerUp', 'bomb'];
 for (const s of sfxNames)
   btn(s, () => {
     audio.unlock();

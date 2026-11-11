@@ -50,6 +50,13 @@
     }
   },
   "sfx": {
+    "bomb": {
+      "file": "sfx/bomb.mp3?v=51947ad8",
+      "duration": 2.307,
+      "peak": -1,
+      "lufs": -10.1,
+      "bytes": 28570
+    },
     "bossDown": {
       "file": "sfx/bossDown.mp3?v=f69fc5d2",
       "duration": 2.705,
@@ -99,6 +106,20 @@
       "lufs": -22.3,
       "bytes": 1612
     },
+    "itemPower": {
+      "file": "sfx/itemPower.mp3?v=50275d79",
+      "duration": 0.62,
+      "peak": -9,
+      "lufs": -23.2,
+      "bytes": 8195
+    },
+    "itemScore": {
+      "file": "sfx/itemScore.mp3?v=ddd5dab4",
+      "duration": 0.079,
+      "peak": -14,
+      "lufs": -21.6,
+      "bytes": 1925
+    },
     "midbossDown": {
       "file": "sfx/midbossDown.mp3?v=5ed88c94",
       "duration": 2,
@@ -112,6 +133,13 @@
       "peak": -1,
       "lufs": -13.2,
       "bytes": 7881
+    },
+    "powerUp": {
+      "file": "sfx/powerUp.mp3?v=35993de8",
+      "duration": 1.239,
+      "peak": -4,
+      "lufs": -14.8,
+      "bytes": 15718
     },
     "shot": {
       "file": "sfx/shot.mp3?v=929d5c54",

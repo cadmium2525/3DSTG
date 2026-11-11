@@ -2,7 +2,7 @@
  * Enemy bullets ("danmaku"): pooled bullets, five patterns, swept collision + graze, and
  * play-plane approach markers. See pool.ts (motion model), patterns.ts, render.ts.
  */
-import type { Danmaku, DanmakuFrameResult, PatternHandle, PatternId, PatternOptions, Vec3Like } from '../core/types';
+import type { BulletClearedFn, Danmaku, DanmakuFrameResult, PatternHandle, PatternId, PatternOptions, Vec3Like } from '../core/types';
 import { DanmakuRenderer } from './render';
 import { DanmakuSim } from './sim';
 
@@ -30,8 +30,8 @@ export function createDanmakuWithSim(): { danmaku: Danmaku; sim: DanmakuSim } {
       view.sync(sim.pool, player.x, player.y);
       return r;
     },
-    clear(center?: Vec3Like, radius?: number): number {
-      return sim.clear(center, radius);
+    clear(center?: Vec3Like, radius?: number, onCleared?: BulletClearedFn): number {
+      return sim.clear(center, radius, onCleared);
     },
     setQuality(level: 0 | 1 | 2) {
       sim.quality = level;

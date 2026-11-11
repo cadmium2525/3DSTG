@@ -42,6 +42,8 @@ export class Player {
   private core: THREE.Mesh;
   lives: number = PLAYER.lives;
   invincible = 0;
+  /** Seconds of bomb (光の結界) protection: like `invincible`, but the model does not blink. */
+  guard = 0;
   /** Debug: never take hits. */
   godMode = false;
   alive = true;
@@ -88,6 +90,7 @@ export class Player {
   reset(): void {
     this.lives = PLAYER.lives;
     this.invincible = 0;
+    this.guard = 0;
     this.alive = true;
     this.position.set(0, -1.2, FIELD.planeZ);
     this.prevX = this.position.x;
@@ -141,6 +144,7 @@ export class Player {
     this.prevY = p.y;
 
     if (this.invincible > 0) this.invincible = Math.max(0, this.invincible - dt);
+    if (this.guard > 0) this.guard = Math.max(0, this.guard - dt);
 
     // Turn smoothly between title and play facing.
     this.yaw += (this.yawTarget - this.yaw) * (1 - Math.exp(-dt * 3));
@@ -163,7 +167,7 @@ export class Player {
 
   /** Can bullets hurt us right now? */
   get vulnerable(): boolean {
-    return this.alive && this.invincible <= 0 && !this.godMode;
+    return this.alive && this.invincible <= 0 && this.guard <= 0 && !this.godMode;
   }
 
   /** Apply a hit; returns true if that was the last life. */

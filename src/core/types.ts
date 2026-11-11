@@ -57,6 +57,8 @@ export interface DanmakuFrameResult {
   grazes: number;
 }
 
+export type BulletClearedFn = (x: number, y: number, z: number) => void;
+
 export interface Danmaku {
   /** Add this to the scene (bullets, glow, approach markers...). */
   readonly object3d: THREE.Object3D;
@@ -69,8 +71,11 @@ export interface Danmaku {
    * @param collide when false (invincible / dead) no hit is reported, grazes neither.
    */
   update(dt: number, player: Vec3Like, collide: boolean): DanmakuFrameResult;
-  /** Remove all bullets within `radius` of `center` (all bullets when omitted). Returns removed count. */
-  clear(center?: Vec3Like, radius?: number): number;
+  /**
+   * Remove all bullets within `radius` of `center` (all bullets when omitted). Returns removed count.
+   * `onCleared` is called with the position of every removed bullet (e.g. to turn it into an item).
+   */
+  clear(center?: Vec3Like, radius?: number, onCleared?: BulletClearedFn): number;
   /** 0 = low, 1 = mid, 2 = high. Lower quality = fewer bullets emitted / cheaper effects. */
   setQuality(level: 0 | 1 | 2): void;
   dispose(): void;
@@ -195,7 +200,8 @@ export interface AudioEngine {
   setMuted(muted: boolean): void;
   playBgm(track: BgmTrack): void;
   stopBgm(): void;
-  sfx(name: SfxName): void;
+  /** @param pitch optional pitch offset in semitones (e.g. item pickups rising with the graze chain). */
+  sfx(name: SfxName, pitch?: number): void;
   /** Suspend / resume with page visibility or pause. */
   setPaused(paused: boolean): void;
   /** Beats elapsed since the current BGM started (float), 0 when silent. For beat-synced patterns. */

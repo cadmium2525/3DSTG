@@ -272,6 +272,14 @@ export class Enemies {
     return true;
   }
 
+  /** Damage every enemy that is on screen (bomb). */
+  damageAll(amount: number): void {
+    for (let i = 0; i < MAX_ENEMIES; i++) {
+      if (this.phase[i] === Phase.Off || this.age[i] < this.delay[i] + ENTER_SEC * 0.3) continue;
+      this.damage(i, amount);
+    }
+  }
+
   /** Push hittable enemies into the target list (ids 0..MAX_ENEMIES-1). */
   addTargets(t: Targets): void {
     for (let i = 0; i < MAX_ENEMIES; i++) {

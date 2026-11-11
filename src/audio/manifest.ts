@@ -19,6 +19,7 @@ export const BGM_FILES = {
   title: { file: 'bgm/title.mp3?v=b8ebc508', bpm: 88, beatsPerBar: 4, loopStart: 0.25, loopEnd: 43.886364 },
 } as const satisfies Record<string, BgmFile>;
 export const SFX_FILES = {
+  bomb: { file: 'sfx/bomb.mp3?v=51947ad8', duration: 2.307 },
   bossDown: { file: 'sfx/bossDown.mp3?v=f69fc5d2', duration: 2.705 },
   bossWarning: { file: 'sfx/bossWarning.mp3?v=25eff698', duration: 1.94 },
   clear: { file: 'sfx/clear.mp3?v=1ab33426', duration: 3.4 },
@@ -26,8 +27,11 @@ export const SFX_FILES = {
   enemyHit: { file: 'sfx/enemyHit.mp3?v=6a67f71a', duration: 0.051 },
   gameOver: { file: 'sfx/gameOver.mp3?v=d0445bdb', duration: 2.321 },
   graze: { file: 'sfx/graze.mp3?v=dae532d8', duration: 0.068 },
+  itemPower: { file: 'sfx/itemPower.mp3?v=50275d79', duration: 0.62 },
+  itemScore: { file: 'sfx/itemScore.mp3?v=ddd5dab4', duration: 0.079 },
   midbossDown: { file: 'sfx/midbossDown.mp3?v=5ed88c94', duration: 2 },
   playerHit: { file: 'sfx/playerHit.mp3?v=91608589', duration: 0.593 },
+  powerUp: { file: 'sfx/powerUp.mp3?v=35993de8', duration: 1.239 },
   shot: { file: 'sfx/shot.mp3?v=929d5c54', duration: 0.057 },
   uiTap: { file: 'sfx/uiTap.mp3?v=6fcbef42', duration: 0.123 },
 } as const satisfies Record<string, SfxFile>;

@@ -1,0 +1,13 @@
+{
+  "//": "Orb of light pickup: soft two-note chime (G6 -> C7) with a short airy tail.",
+  "mix": [
+    { "layers": [
+      { "src": "modal", "freq": 1568, "modes": [[1, 0.35, 1], [2.76, 0.12, 0.25], [5.4, 0.06, 0.08]], "amp": { "a": 0.002, "d": 0.3 }, "gain": -2, "pan": -0.15 },
+      { "at": 0.045, "src": "modal", "freq": 2093, "modes": [[1, 0.4, 1], [2.76, 0.14, 0.25], [5.4, 0.06, 0.08]], "amp": { "a": 0.002, "d": 0.36 }, "gain": 0, "pan": 0.15 },
+      { "src": "sine", "freq": [[0, 1046.5], [0.2, 1046.5]], "amp": { "a": 0.01, "h": 0.03, "d": 0.2 }, "gain": -14 }
+    ],
+      "fx": [{ "type": "reverb", "size": 1.1, "decay": 1.2, "mix": 0.22 }] }
+  ],
+  "maxLen": 0.7,
+  "peak": -9
+}

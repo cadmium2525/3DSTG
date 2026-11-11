@@ -9,7 +9,9 @@ import './style.css';
 import { PLAYER } from '../core/config';
 import type { GameUI, HudData, ResultData, SaveStore, Settings, UiCallbacks } from '../core/types';
 import {
+  BARRIER_PIP,
   BOW,
+  ICON_BARRIER,
   ICON_CLOSE,
   ICON_DRAG,
   ICON_GEAR,
@@ -161,12 +163,20 @@ const HUD_HTML = `
         <span class="bd-graze-pop" aria-hidden="true">GRAZE</span>
       </div>
     </div>
+    <div class="bd-hud-row bd-hud-row3">
+      <div class="bd-power" aria-label="ショットパワー">
+        <span class="bd-lab">POWER</span><b class="bd-power-lv">Lv1</b>
+        <span class="bd-power-segs"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></span>
+      </div>
+      <div class="bd-bombs" aria-label="結界"></div>
+    </div>
     <div class="bd-boss" aria-hidden="true">
       <div class="bd-boss-head"><span class="bd-boss-name"></span><span class="bd-boss-pat"></span></div>
       <div class="bd-boss-bar"><i class="bd-boss-lag"></i><i class="bd-boss-fill"></i></div>
     </div>
   </div>
   <button class="bd-slow" type="button" aria-label="低速移動">${ICON_SLOW}<span>低速</span></button>
+  <button class="bd-bomb" type="button" aria-label="光の結界（ボム）">${ICON_BARRIER}<span>結界</span><b class="bd-bomb-n">2</b></button>
 `;
 
 const SOUND_ROW = (cls: string) => `
@@ -340,7 +350,13 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const bossPat = q(hud, '.bd-boss-pat');
   const bossFill = q(hud, '.bd-boss-fill');
   const bossLag = q(hud, '.bd-boss-lag');
-  const prev = { score: -1, hi: -1, graze: -1, lives: -1, slots: 0, boss: false, name: '', pat: '', hp: -1 };
+  const hPower = q(hud, '.bd-power');
+  const hPowerLv = q(hud, '.bd-power-lv');
+  const hPowerSegs = Array.from(hud.querySelectorAll<HTMLElement>('.bd-power-segs b'));
+  const hBombs = q(hud, '.bd-bombs');
+  const bombBtn = q(hud, '.bd-bomb');
+  const bombN = q(hud, '.bd-bomb-n');
+  const prev = { score: -1, hi: -1, graze: -1, lives: -1, slots: 0, boss: false, name: '', pat: '', hp: -1, bombs: -1, power: -1, pp: -1 };
 
   const renderLives = (n: number) => {
     const slots = Math.max(PLAYER.lives, n);
@@ -351,6 +367,27 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     const icons = hLives.children;
     for (let i = 0; i < icons.length; i++) icons[i].classList.toggle('is-lost', i >= n);
   };
+
+  // Bomb fires on press (not release) so a 決死ボム within a fraction of a second is possible.
+  let bombAt = -1e9;
+  const fireBomb = () => {
+    if (screen !== 'hud' || paused) return;
+    bombAt = performance.now();
+    cb.onBomb();
+    play(bombBtn, [{ transform: 'scale(0.86)' }, { transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
+  };
+  bombBtn.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    fireBomb();
+  });
+  for (const ev of ['touchstart', 'mousedown', 'pointerup', 'touchend'] as const) {
+    bombBtn.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+  }
+  bombBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (performance.now() - bombAt > 700) fireBomb(); // keyboard / assistive activation
+  });
 
   onTap(q(hud, '.bd-pause-btn'), () => {
     if (screen === 'hud' && !paused) cb.onPause(true);
@@ -430,6 +467,29 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
       if (d.lives !== prev.lives) {
         prev.lives = d.lives;
         renderLives(Math.max(0, d.lives));
+      }
+      if (d.bombs !== prev.bombs) {
+        const n = Math.max(0, d.bombs);
+        if (n < prev.bombs) play(hBombs, [{ opacity: 0.4 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' });
+        prev.bombs = n;
+        hBombs.innerHTML = BARRIER_PIP.repeat(Math.min(n, 6));
+        bombN.textContent = String(n);
+        bombBtn.classList.toggle('is-empty', n <= 0);
+        bombBtn.setAttribute('aria-disabled', String(n <= 0));
+      }
+      const pp = Math.round(Math.min(1, Math.max(0, d.powerProgress)) * 50) / 50;
+      if (d.power !== prev.power || pp !== prev.pp) {
+        const up = prev.power > 0 && d.power > prev.power;
+        prev.power = d.power;
+        prev.pp = pp;
+        const max = d.power >= 4;
+        hPowerLv.textContent = max ? 'MAX' : `Lv${d.power}`;
+        hPower.classList.toggle('is-max', max);
+        for (let i = 0; i < hPowerSegs.length; i++) {
+          const f = i < d.power ? 1 : i === d.power ? pp : 0;
+          hPowerSegs[i].style.transform = `scaleX(${f})`;
+        }
+        if (up) play(hPower, [{ transform: 'scale(1.18)', filter: 'brightness(1.8)' }, { transform: 'scale(1)', filter: 'brightness(1)' }], { duration: 480, easing: 'ease-out' });
       }
       const b = d.boss;
       if (!!b !== prev.boss) {

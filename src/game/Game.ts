@@ -25,7 +25,9 @@ import { Quality, type QualityLevel } from './Quality';
 import { Rng } from './Rng';
 import { Shots, Targets } from './Shots';
 import { Stage } from './Stage';
-import { BOSS, BOSS_SKIP_T, ENEMY_KINDS, SCORE, SHOT } from './StageData';
+import { BOMB, BOSS, BOSS_SKIP_T, ENEMY_KINDS, ITEMS, POWER, SCORE } from './StageData';
+import { Items, ItemKind } from './Items';
+import { Bomb } from './Bomb';
 import { MidBoss, MidBossState } from './MidBoss';
 import { MIDBOSS, MIDBOSS_SKIP_T } from './StageData';
 
@@ -39,6 +41,9 @@ const MAX_DT = 1 / 20;
 const HUD_INTERVAL = 0.1;
 const PIXEL_RATIO_CAP: Record<QualityLevel, number> = { 0: 1, 1: 1.5, 2: 2 };
 const PHASE_NAMES = BOSS.phases.map((p) => p.patterns.map((x) => PATTERN_NAMES[x.id]).join(' + '));
+/** Orbs needed to reach power Lv1..4 (cumulative POWER.perLevel). */
+const POWER_AT = POWER.perLevel.reduce((a, n) => (a.push(a[a.length - 1] + n), a), [0]);
+const POWER_MAX = POWER_AT[POWER_AT.length - 1];
 
 export interface GameDeps {
   canvas: HTMLCanvasElement;
@@ -79,6 +84,16 @@ export class Game {
   private midBoss: MidBoss;
   private hudMid = { name: MIDBOSS.name, hp: 1, pattern: '' as string | undefined };
   midBossOnStart = false;
+  // Items, shot power, bomb (see Items.ts / Bomb.ts / StageData ITEMS, POWER, BOMB).
+  private items: Items;
+  private bomb: Bomb;
+  bombs: number = BOMB.stock;
+  private powerOrbs = 0;
+  private maxPower = 1;
+  /** Fractional power-orb drops accumulated across small-enemy kills. */
+  private dropBank = 0;
+  /** > 0 while a hit waits for a 決死ボム (deathbomb). */
+  private hitPendingT = 0;
 
   // Score / run stats.
   score = 0;
@@ -98,7 +113,7 @@ export class Game {
   private needsRender = true;
 
   // Throttles.
-  private hud: HudData = { score: 0, hiScore: 0, lives: PLAYER.lives, graze: 0, boss: null };
+  private hud: HudData = { score: 0, hiScore: 0, lives: PLAYER.lives, graze: 0, bombs: BOMB.stock, power: 1, powerProgress: 0, boss: null };
   private hudBoss = { name: BOSS.name, hp: 1, pattern: '' as string | undefined };
   private hudTimer = 0;
   private hudDirty = true;
@@ -155,11 +170,16 @@ export class Game {
     scene.add(this.intro.group);
     this.shots = new Shots();
     scene.add(this.shots.mesh);
+    this.items = new Items(this.rng, this.effects, this.onCollect);
+    scene.add(this.items.mesh);
+    this.bomb = new Bomb();
+    scene.add(this.bomb.group);
 
     this.enemies = new Enemies(this.danmaku, this.rng, {
       onKilled: (kind, x, y, z) => {
         const def = ENEMY_KINDS[kind];
         this.addScore(def.score);
+        this.dropItems(kind, x, y, z);
         this.effects.burst(x, y, z, def.color, kind === 'lantern' ? 60 : 26, kind === 'lantern' ? 16 : 10, kind === 'lantern' ? 1.1 : 0.6, 0.8);
         this.effects.burst(x, y, z, PALETTE.white, 8, 6, 0.5, 0.4);
         this.effects.ring(x, y, z, def.color, def.scale * 2.6, 0.45);
@@ -179,11 +199,17 @@ export class Game {
         this.hudBoss.pattern = PHASE_NAMES[i];
         this.hudDirty = true;
       },
-      onPhaseEnd: (_i, broken, cancelled) => {
-        this.addScore(cancelled * SCORE.bulletCancel + (broken ? SCORE.phaseBreak : 0));
+      onPhaseEnd: (_i, broken) => {
+        // Cancelled bullets already turned into star items (onBulletCancel).
+        if (broken) this.addScore(SCORE.phaseBreak);
         this.hudBoss.pattern = undefined;
         this.hudDirty = true;
         const p = this.boss.position;
+        this.items.magnetAll();
+        if (broken && _i < BOSS.phases.length - 1) {
+          this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.bossPhase.stars, ITEMS.starValue, 2);
+          this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.bossPhase.power, 1, 1.6);
+        }
         this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 20, 0.7);
         if (broken) this.rig.shake(0.18);
       },
@@ -191,7 +217,7 @@ export class Game {
         this.sfx('bossDown');
         this.rig.shake(0.6, 2.5);
         this.danmaku.stopAllPatterns();
-        this.danmaku.clear();
+        this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
         this.addScore(SCORE.bossKill);
         this.ui.announce('BOSS DEFEATED', `+${SCORE.bossKill.toLocaleString()}`);
         this.endPlay(true, 3.0);
@@ -202,10 +228,11 @@ export class Game {
         this.endPlay(true, 2.0);
       },
       onHit: (x, y, z, damaged) => {
-        if (damaged) this.addScore(SCORE.bossHit);
+        if (damaged) this.addScore(SCORE.bossHit * this.shots.damage);
         this.effects.burst(x, y, z + 1, damaged ? PALETTE.gold : PALETTE.purple, 2, 7, 0.45, 0.25);
         this.sfx('enemyHit', 0.07);
       },
+      onBulletCancel: this.items.cancelBullet,
     });
     scene.add(this.boss.group);
     this.midBoss = this.createMidBoss();
@@ -239,6 +266,7 @@ export class Game {
       if (this.state === 'playing') this.setPaused(true);
       else if (this.state === 'paused') this.setPaused(false);
     };
+    this.input.onBombKey = () => this.useBomb();
 
     // Resize / orientation.
     const onResize = () => this.resize();
@@ -274,6 +302,9 @@ export class Game {
     this.midBoss.reset();
     this.midBossResult = null;
     this.shots.clear();
+    this.items.clear();
+    this.bomb.reset();
+    this.hitPendingT = 0;
   }
 
   toTitle(): void {
@@ -304,6 +335,11 @@ export class Game {
     this.misses = 0;
     this.grazeChain = 0;
     this.lastGrazeT = -10;
+    this.bombs = BOMB.stock;
+    this.powerOrbs = 0;
+    this.maxPower = 1;
+    this.dropBank = 0;
+    this.shots.level = 1;
     this.player.reset();
     this.player.position.set(0, turning ? 0 : -0.8, FIELD.planeZ);
     this.player.setPlayPose();
@@ -375,6 +411,7 @@ export class Game {
   /** Called when the run ends; result shown after `delay` seconds. */
   private endPlay(cleared: boolean, delay: number): void {
     this.phase = cleared ? 'clearing' : 'dying';
+    if (cleared) this.items.magnetAll(delay + 1);
     this.endCleared = cleared;
     this.endTimer = delay;
   }
@@ -415,22 +452,126 @@ export class Game {
     this.score += Math.round(n);
   }
 
-  private sfx(name: SfxName, minGap = 0): void {
+  private sfx(name: SfxName, minGap = 0, pitch = 0): void {
     const t = this.sfxT[name] ?? -1;
     if (this.time - t < minGap) return;
     this.sfxT[name] = this.time;
-    this.audio.sfx(name);
+    this.audio.sfx(name, pitch);
   }
 
   private onShotHit = (id: number, x: number, y: number, z: number): void => {
-    if (id === BOSS_ID) this.boss.damage(SHOT.damage, x, y, z);
-    else if (id === MIDBOSS_ID) this.midBoss.damage(SHOT.damage, x, y, z);
-    else this.enemies.damage(id, SHOT.damage);
+    const dmg = this.shots.damage;
+    if (id === BOSS_ID) this.boss.damage(dmg, x, y, z);
+    else if (id === MIDBOSS_ID) this.midBoss.damage(dmg, x, y, z);
+    else this.enemies.damage(id, dmg);
   };
+
+  /* ---- items / power ---- */
+
+  /** Current graze chain (0 when the last graze is too old). */
+  private chainNow(): number {
+    if (this.playTime - this.lastGrazeT >= SCORE.grazeChainWindow) return 0;
+    return Math.min(this.grazeChain, SCORE.grazeChainCap);
+  }
+
+  get powerLevel(): number {
+    let l = 1;
+    while (l < POWER_AT.length && this.powerOrbs >= POWER_AT[l]) l++;
+    return l;
+  }
+
+  get powerProgress(): number {
+    const l = this.powerLevel;
+    if (l >= POWER_AT.length) return 1;
+    return (this.powerOrbs - POWER_AT[l - 1]) / (POWER_AT[l] - POWER_AT[l - 1]);
+  }
+
+  private setPowerOrbs(n: number): void {
+    const before = this.powerLevel;
+    this.powerOrbs = Math.max(0, Math.min(POWER_MAX, n));
+    const l = this.powerLevel;
+    this.shots.level = l;
+    this.maxPower = Math.max(this.maxPower, l);
+    this.hudDirty = true;
+    if (l > before && this.state === 'playing') {
+      const p = this.player.position;
+      this.sfx('powerUp', 0.2);
+      this.effects.ring(p.x, p.y, p.z, PALETTE.gold, 2.4, 0.5);
+      this.effects.burst(p.x, p.y, p.z, PALETTE.white, 18, 5, 0.22, 0.6);
+    }
+  }
+
+  private dropItems(kind: keyof typeof ITEMS.drops, x: number, y: number, z: number): void {
+    const d = ITEMS.drops[kind];
+    const big = kind === 'lantern';
+    this.items.drop(ItemKind.Star, x, y, z, d.stars, ITEMS.starValue, big ? 1.3 : 0.7);
+    this.dropBank += d.power;
+    const n = Math.floor(this.dropBank + 1e-6);
+    this.dropBank -= n;
+    if (n > 0) this.items.drop(ItemKind.Power, x, y, z, n, 1, big ? 1.1 : 0.5);
+  }
+
+  private onCollect = (kind: ItemKind, value: number): void => {
+    const p = this.player.position;
+    const chain = this.chainNow();
+    const mul = 1 + chain * ITEMS.chainBonus;
+    if (kind === ItemKind.Star) {
+      this.addScore(value * mul);
+      this.sfx('itemScore', 0.035, chain * 0.35);
+      this.effects.burst(p.x, p.y, p.z, PALETTE.gold, 1, 2.5, 0.14, 0.25);
+    } else {
+      if (this.powerOrbs >= POWER_MAX) this.addScore(POWER.maxBonus * mul);
+      else this.setPowerOrbs(this.powerOrbs + value);
+      this.sfx('itemPower', 0.05);
+      this.effects.burst(p.x, p.y, p.z, PALETTE.white, 4, 3, 0.18, 0.35);
+    }
+  };
+
+  /* ---- bomb (光の結界) ---- */
+
+  /** Fire the bomb if possible (button / X / B key). Within the 決死ボム window it cancels the hit. */
+  useBomb(): boolean {
+    if (this.state !== 'playing' || this.intro.busy || this.playTime < 0.8) return false;
+    if (this.phase !== 'stage' && this.phase !== 'boss') return false;
+    const pl = this.player;
+    if (!pl.alive || this.bombs <= 0 || this.bomb.active) return false;
+    const deathbomb = this.hitPendingT > 0;
+    this.hitPendingT = 0;
+    this.bombs--;
+    const p = pl.position;
+    this.bomb.start(p);
+    pl.guard = Math.max(pl.guard, BOMB.invincibleSec);
+    this.items.magnetAll(BOMB.invincibleSec);
+    this.sfx('bomb');
+    this.rig.shake(0.3, 2.2);
+    this.effects.burst(p.x, p.y, p.z, PALETTE.white, 36, 9, 0.3, 0.8);
+    this.effects.burst(p.x, p.y, p.z, PALETTE.gold, 24, 6, 0.26, 0.9);
+    this.effects.ring(p.x, p.y, p.z, PALETTE.cyan, 4.5, 0.5);
+    if (deathbomb) this.effects.ring(p.x, p.y, p.z, PALETTE.pink, 3, 0.4);
+    this.hudDirty = true;
+    return true;
+  }
+
+  /** A bullet touched the heroine: with a bomb in stock, wait briefly for a 決死ボム. */
+  private beginHitPending(): void {
+    const p = this.player.position;
+    this.hitPendingT = BOMB.deathbombWindow;
+    this.effects.burst(p.x, p.y, p.z, PALETTE.pink, 14, 4, 0.22, 0.4);
+    this.rig.shake(0.1, 4);
+  }
+
+  private bombTick(): void {
+    this.enemies.damageAll(BOMB.enemyDamage);
+    const b = this.boss.position;
+    if (this.boss.active) this.boss.damage(BOMB.bossDamage, b.x, b.y, b.z + 2);
+    const m = this.midBoss.position;
+    if (this.midBoss.active) this.midBoss.damage(BOMB.bossDamage, m.x, m.y, m.z + 2);
+  }
 
   private onPlayerHit(): void {
     const p = this.player.position;
     this.misses++;
+    this.hitPendingT = 0;
     this.sfx('playerHit');
     this.ui.flashDamage();
     this.rig.shake(0.35, 3.5);
@@ -440,6 +581,11 @@ export class Game {
     this.effects.ring(p.x, p.y, p.z, PALETTE.pink, 1.7, 0.45);
     this.grazeChain = 0;
     const dead = this.player.hit();
+    // Lose about one level of power (never below Lv1); some of it flies out to re-collect.
+    const lost = Math.min(this.powerOrbs, POWER.missLoss);
+    this.setPowerOrbs(this.powerOrbs - lost);
+    if (!dead && lost > 0) this.items.scatter(p.x, p.y, p.z, Math.min(POWER.missScatter, lost));
+    this.bombs = BOMB.stock;
     this.hudDirty = true;
     if (dead) {
       this.danmaku.stopAllPatterns();
@@ -497,6 +643,16 @@ export class Game {
   }
 
   private update(dt: number): void {
+    // 決死ボム window: real time runs out, the world runs in slow motion meanwhile.
+    let pendingU = -1;
+    if (this.hitPendingT > 0 && this.state === 'playing') {
+      this.hitPendingT -= dt;
+      if (this.hitPendingT <= 0) this.onPlayerHit();
+      else {
+        pendingU = 1 - this.hitPendingT / BOMB.deathbombWindow;
+        dt *= BOMB.deathbombTimeScale;
+      }
+    }
     this.time += dt;
     const settings = this.save.settings;
     const playing = this.state === 'playing';
@@ -519,6 +675,7 @@ export class Game {
     if (playing) {
       this.playTime += dt;
       if (this.phase === 'stage') this.stage.update(dt);
+      this.items.beginFrame(this.danmaku.activeCount);
 
       this.targets.begin();
       this.enemies.addTargets(this.targets);
@@ -532,11 +689,21 @@ export class Game {
       this.boss.update(dt);
       this.midBoss.update(dt);
 
+      // Bomb: clear bullets inside the sweeping radius (→ stars), damage ticks.
+      const ticks = this.bomb.update(dt, p.position, pendingU);
+      for (let k = 0; k < ticks; k++) this.bombTick();
+      const cr = this.bomb.clearRadius;
+      if (cr > 0) this.danmaku.clear(p.position, cr, this.items.cancelBullet);
+
       // God mode (debug) still collides so grazes count; hits are ignored.
-      const collide = p.alive && p.invincible <= 0 && (this.phase === 'stage' || this.phase === 'boss');
+      const collide = p.alive && p.invincible <= 0 && p.guard <= 0 && this.hitPendingT <= 0 && (this.phase === 'stage' || this.phase === 'boss');
       const res = this.danmaku.update(dt, p.position, collide);
-      if (collide && res.hit && !p.godMode) this.onPlayerHit();
-      else if (collide && res.grazes > 0) this.onGraze(res.grazes);
+      if (collide && res.hit && !p.godMode) {
+        if (this.bombs > 0) this.beginHitPending();
+        else this.onPlayerHit();
+      } else if (collide && res.grazes > 0) this.onGraze(res.grazes);
+
+      this.items.update(dt, p.position, slow, p.alive && this.phase !== 'dying');
 
       if (this.phase === 'dying' || this.phase === 'clearing') {
         this.endTimer -= dt;
@@ -547,6 +714,7 @@ export class Game {
       this.boss.update(dt);
       this.midBoss.update(dt);
       this.danmaku.update(dt, p.position, false);
+      this.bomb.update(dt, p.position, -1);
     }
 
     this.effects.update(dt);
@@ -572,6 +740,9 @@ export class Game {
     h.hiScore = Math.max(this.save.hiScore, this.score);
     h.lives = this.player.lives;
     h.graze = this.graze;
+    h.bombs = this.bombs;
+    h.power = this.powerLevel;
+    h.powerProgress = this.powerProgress;
     if (this.boss.active && this.boss.state !== BossState.Dying) {
       this.hudBoss.hp = this.boss.hp;
       h.boss = this.hudBoss;
@@ -631,11 +802,31 @@ export class Game {
       midBossState: this.midBoss.active ? MidBossState[this.midBoss.state] : null,
       midBossResult: this.midBossResult,
       enemies: this.enemies.activeCount,
+      bombs: this.bombs,
+      power: this.powerLevel,
+      powerProgress: Math.round(this.powerProgress * 1000) / 1000,
+      powerOrbs: this.powerOrbs,
+      maxPower: this.maxPower,
+      items: this.items.activeCount,
+      bombActive: this.bomb.active,
+      hitPending: this.hitPendingT > 0,
       bullets: this.danmaku.activeCount,
       fps: Math.round(this.quality.fps),
       quality: this.quality.level,
       player: { x: Math.round(this.player.position.x * 1000) / 1000, y: Math.round(this.player.position.y * 1000) / 1000 },
     };
+  }
+
+  /** Debug: drop items as if an enemy died at (x, y, z) (default: ahead, mid-depth). */
+  debugDrop(stars: number, orbs: number, x = 0, y = 3, z = -42): void {
+    if (stars > 0) this.items.drop(ItemKind.Star, x, y, z, stars, ITEMS.starValue, 1);
+    if (orbs > 0) this.items.drop(ItemKind.Power, x, y, z, orbs, 1, 1);
+  }
+
+  /** Debug: set shot power level 1..4. */
+  setPower(n: number): void {
+    const l = Math.max(1, Math.min(POWER_AT.length, Math.round(n)));
+    this.setPowerOrbs(POWER_AT[l - 1]);
   }
 
   setInvincible(on: boolean): void {
@@ -667,23 +858,34 @@ export class Game {
         this.hudMid.pattern = def.name;
         this.hudDirty = true;
       },
-      onPhaseEnd: (i, broken, cancelled) => {
+      onPhaseEnd: (i, broken) => {
         // Timeout = no bonus at all (it is about to fly away / change phase on its own).
+        // Broken: cancelled bullets already became star items (onBulletCancel).
+        const p = this.midBoss.position;
         if (broken) {
           const last = i >= MIDBOSS.phases.length - 1;
-          this.addScore(cancelled * SCORE.bulletCancel + (last ? 0 : SCORE.midBossPhaseBreak));
+          this.items.magnetAll();
+          if (!last) {
+            this.addScore(SCORE.midBossPhaseBreak);
+            this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.midBossPhase.stars, ITEMS.starValue, 1.8);
+            this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.midBossPhase.power, 1, 1.4);
+          }
           this.rig.shake(0.14);
         }
         this.hudMid.pattern = undefined;
         this.hudDirty = true;
-        const p = this.midBoss.position;
         this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 14, 0.6);
       },
       onDefeated: () => {
         this.sfx('midbossDown');
         this.rig.shake(0.42, 3);
-        this.danmaku.clear();
+        this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
         this.addScore(SCORE.midBossKill);
+        // Guaranteed big power burst, sucked straight to the heroine.
+        const p = this.midBoss.position;
+        this.items.magnetAll(1.5);
+        this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.midBossKill.power, 1, 1.6);
+        this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.midBossKill.stars, ITEMS.starValue, 2);
         this.ui.announce('MID BOSS DEFEATED', `+${SCORE.midBossKill.toLocaleString()}`);
         this.endMidBoss('defeated');
       },
@@ -692,10 +894,11 @@ export class Game {
         this.endMidBoss('escaped');
       },
       onHit: (x, y, z, damaged) => {
-        if (damaged) this.addScore(SCORE.midBossHit);
+        if (damaged) this.addScore(SCORE.midBossHit * this.shots.damage);
         this.effects.burst(x, y, z + 1, damaged ? PALETTE.cyan : PALETTE.purple, 2, 7, 0.4, 0.25);
         this.sfx('enemyHit', 0.07);
       },
+      onBulletCancel: this.items.cancelBullet,
     });
   }
 

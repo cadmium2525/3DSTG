@@ -94,7 +94,8 @@ export interface MidBossPhaseDef {
 export const MIDBOSS = {
   name: '硝子蝶 ルクシア',
   sub: 'MID BOSS — 夜をわたる硝子の翅',
-  maxHp: 400,
+  /** ×1.2 since shot power exists: the player usually arrives at Lv2–3 (Lv2 = the old fight length). */
+  maxHp: 480,
   /** Fly-in (invulnerable for the first ~60%). */
   enterSec: 2.4,
   /** Pause between the two phases (bullets cleared). */
@@ -138,7 +139,8 @@ export interface BossPhaseDef {
 
 export const BOSS = {
   name: '星環の花冠 アストルム',
-  maxHp: 840,
+  /** ×1.3 since shot power Lv1..4 exists (Lv1 = the old DPS, see SHOT_LEVELS). */
+  maxHp: 1090,
   /** Seconds the boss takes to fly in (invulnerable). */
   enterSec: 3.0,
   /** Breather between phases (bullets cleared, invulnerable). */
@@ -164,7 +166,7 @@ export const BOSS = {
 export const SCORE = {
   /** Per shot that hits the boss. */
   bossHit: 10,
-  /** Per bullet removed when a phase breaks. */
+  /** Per bullet removed by a phase break / bomb (paid out through the star items it turns into). */
   bulletCancel: 10,
   phaseBreak: 5000,
   bossKill: 30000,
@@ -187,12 +189,87 @@ export const SCORE = {
 };
 
 export const SHOT = {
-  /** Volleys per second; each volley fires 2 shots. */
+  /** Volleys per second; each volley fires one shot per stream of the current power level. */
   rate: 14,
   speed: 115,
-  damage: 1,
   /** Auto-aim: shots lock onto the target nearest the forward axis within this cone (tan of half-angle). */
   aimCone: 0.14,
   /** Homing turn rate (1/sec) toward a locked target. */
   homing: 5,
+};
+
+/** One shot stream: muzzle x offset, lateral spread (fan / offset at the locked target), outer = gold tint. */
+export interface ShotStream {
+  x: number;
+  spread: number;
+  outer?: boolean;
+}
+
+/**
+ * Shot power Lv1..4. DPS on one target = streams × damage × SHOT.rate:
+ * Lv1 28 (the pre-power balance), Lv2 33.6 (×1.2), Lv3 39.2 (×1.4), Lv4 46.2 (×1.65).
+ * Boss / mid-boss HP is ×1.3, so Lv3 ≈ the old fight length, Lv1 ≈ ×1.3, Lv4 ≈ ×0.8.
+ */
+export const SHOT_LEVELS: { damage: number; streams: ShotStream[] }[] = [
+  { damage: 1, streams: [{ x: -0.2, spread: -1 }, { x: 0.2, spread: 1 }] },
+  { damage: 0.8, streams: [{ x: -0.22, spread: -1 }, { x: 0, spread: 0 }, { x: 0.22, spread: 1 }] },
+  { damage: 0.7, streams: [{ x: -0.16, spread: -0.6 }, { x: 0.16, spread: 0.6 }, { x: -0.42, spread: -2.4, outer: true }, { x: 0.42, spread: 2.4, outer: true }] },
+  {
+    damage: 0.66,
+    streams: [
+      { x: 0, spread: 0 }, { x: -0.22, spread: -0.9 }, { x: 0.22, spread: 0.9 },
+      { x: -0.5, spread: -3.2, outer: true }, { x: 0.5, spread: 3.2, outer: true },
+    ],
+  },
+];
+
+export const POWER = {
+  /** Orbs (光の玉) needed for Lv1→2, Lv2→3, Lv3→4 (36 in total). */
+  perLevel: [8, 12, 16],
+  /** On a miss: orbs lost (about one level, never below Lv1) and how many of them fly out to re-collect. */
+  missLoss: 12,
+  missScatter: 5,
+  /** Score per orb collected at max power. */
+  maxBonus: 1000,
+};
+
+/** Item drops (star fragments = score, orbs of light = power). */
+export const ITEMS = {
+  /** Star value at graze chain 0; × (1 + chain × chainBonus) at pickup (chain capped by SCORE.grazeChainCap → ×3). */
+  starValue: 60,
+  chainBonus: 0.1,
+  /** Per enemy kind: stars dropped and power orbs (fractional = accumulated across kills). */
+  drops: {
+    petal: { stars: 2, power: 0.5 },
+    crystal: { stars: 3, power: 0.6 },
+    lantern: { stars: 8, power: 4 },
+  } as Record<EnemyKind, { stars: number; power: number }>,
+  bossPhase: { stars: 12, power: 4 },
+  midBossPhase: { stars: 8, power: 3 },
+  /** Mid-boss defeat: guaranteed big power burst. */
+  midBossKill: { stars: 16, power: 10 },
+  /** Seconds items spawned after a phase break / bomb keep homing to the player. */
+  magnetSec: 1.2,
+  /** Pickup / attraction radius on the play plane (attraction bigger in slow mode). */
+  pickupRadius: 0.62,
+  attractRadius: 1.6,
+  attractRadiusSlow: 2.6,
+  /** While the heroine is above this y every item homes to her (upper "collection line"). */
+  collectLineY: 2.2,
+};
+
+export const BOMB = {
+  /** Stock at the start, and the refill after every miss. */
+  stock: 2,
+  /** Player invincibility from the bomb (no blink). */
+  invincibleSec: 2.5,
+  /** Seconds the barrier keeps clearing bullets (its clear radius sweeps out to the enemies meanwhile). */
+  clearSec: 1.5,
+  /** Damage ticks (seconds after the start) to every small enemy and to the boss / mid-boss. */
+  ticks: [0.12, 0.55],
+  enemyDamage: 30,
+  bossDamage: 22,
+  /** 決死ボム: seconds after a hit during which the bomb cancels it (world runs in slow motion meanwhile). */
+  deathbombWindow: 0.25,
+  deathbombTimeScale: 0.3,
 };

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PALETTE } from '../core/config';
-import type { Danmaku, PatternHandle, Vec3Like } from '../core/types';
+import type { BulletClearedFn, Danmaku, PatternHandle, Vec3Like } from '../core/types';
 import { MIDBOSS } from './StageData';
 import type { Targets } from './Shots';
 import type { Effects } from './Effects';
@@ -23,6 +23,8 @@ export interface MidBossEvents {
   onDefeated(x: number, y: number, z: number): void;
   onEscaped(): void;
   onHit(x: number, y: number, z: number, damaged: boolean): void;
+  /** Called for every bullet removed when a phase ends (bullets → star items). */
+  onBulletCancel?: BulletClearedFn;
 }
 
 const BURST_COLS = [PALETTE.cyan, PALETTE.purple, PALETTE.pink, PALETTE.gold];
@@ -278,7 +280,7 @@ export class MidBoss {
 
   private endPhase(broken: boolean): void {
     this.stopPatterns();
-    const cancelled = this.danmaku.clear();
+    const cancelled = this.danmaku.clear(undefined, undefined, broken ? this.ev.onBulletCancel : undefined);
     this.ev.onPhaseEnd(this.phaseIndex, broken, cancelled);
     this.t = 0;
     if (this.phaseIndex >= MIDBOSS.phases.length - 1) {

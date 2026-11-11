@@ -54,6 +54,11 @@ const RULES: Record<SfxName, SfxRule> = {
   uiTap: { max: 2, gap: 0.05, gain: 1, detune: 0 },
   clear: { max: 1, gap: 1.0, gain: 1, detune: 0, duck: 0.4, duckFor: 3.0 },
   gameOver: { max: 1, gap: 1.0, gain: 1, detune: 0, duck: 0.3, duckFor: 2.4 },
+  // Star pickups arrive in bursts (bomb / phase break): few voices, dropped when busy.
+  itemScore: { max: 3, gap: 0.03, gain: 0.8, detune: 15, drop: true },
+  itemPower: { max: 2, gap: 0.06, gain: 1, detune: 20, drop: true },
+  powerUp: { max: 1, gap: 0.3, gain: 1, detune: 0, duck: 0.7, duckFor: 0.5 },
+  bomb: { max: 1, gap: 0.5, gain: 1, detune: 0, duck: 0.45, duckFor: 1.4 },
 };
 
 /** Background decode order after the requested track. */
@@ -359,7 +364,7 @@ export function createAudio(): AudioEngine {
   const lastStart = new Map<SfxName, number>();
   let totalVoices = 0;
 
-  function playSfx(name: SfxName) {
+  function playSfx(name: SfxName, pitch = 0) {
     if (!ctx || !sfxBus) return;
     const entry = sfxBuf.get(name);
     if (!entry) return;
@@ -383,7 +388,8 @@ export function createAudio(): AudioEngine {
     }
     const src = ctx.createBufferSource();
     src.buffer = entry.buf;
-    const rate = rule.detune ? Math.pow(2, ((Math.random() * 2 - 1) * rule.detune) / 1200) : 1;
+    const cents = (rule.detune ? (Math.random() * 2 - 1) * rule.detune : 0) + pitch * 100;
+    const rate = cents ? Math.pow(2, cents / 1200) : 1;
     src.playbackRate.value = rate;
     const gain = ctx.createGain();
     gain.gain.value = rule.gain;
@@ -457,11 +463,11 @@ export function createAudio(): AudioEngine {
         /* ignore */
       }
     },
-    sfx(name) {
+    sfx(name, pitch) {
       // Skip when muted (saves CPU) or not running (would burst on resume).
       if (!ctx || muted || paused || ctx.state !== 'running') return;
       try {
-        playSfx(name);
+        playSfx(name, pitch);
       } catch {
         /* ignore */
       }

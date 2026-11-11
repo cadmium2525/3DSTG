@@ -227,7 +227,7 @@ export class BulletPool {
   }
 
   /** Pop all live bullets within radius of (x,y,z) (all when radius < 0). Returns count. */
-  clear(x: number, y: number, z: number, radius: number): number {
+  clear(x: number, y: number, z: number, radius: number, onCleared?: (x: number, y: number, z: number) => void): number {
     let c = 0;
     const r2 = radius * radius;
     for (let i = 0; i < this.n; i++) {
@@ -237,6 +237,7 @@ export class BulletPool {
         if (dx * dx + dy * dy + dz * dz > r2) continue;
       }
       this.kill(i);
+      if (onCleared) onCleared(this.x[i], this.y[i], this.z[i]);
       c++;
     }
     return c;

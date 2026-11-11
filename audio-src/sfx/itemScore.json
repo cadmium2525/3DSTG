@@ -1,0 +1,9 @@
+{
+  "//": "Star-fragment pickup: very soft, short glassy pling (plays in bursts; pitch rises with the graze chain in-game).",
+  "layers": [
+    { "src": "sine", "freq": [[0, 2349], [0.025, 2794, "exp"]], "amp": { "a": 0.0015, "h": 0.006, "d": 0.07 }, "gain": 0 },
+    { "src": "modal", "freq": 4699, "modes": [[1, 0.05, 1], [2.0, 0.03, 0.3]], "amp": { "a": 0.0008, "d": 0.06 }, "gain": -12, "pan": 0.1 },
+    { "src": "noise", "filter": { "type": "bp", "freq": 9000, "q": 2 }, "amp": { "a": 0.0005, "d": 0.012 }, "gain": -22 }
+  ],
+  "peak": -14
+}

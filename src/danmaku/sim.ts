@@ -1,6 +1,6 @@
 /** Headless danmaku simulation: pool + emitters + collision. No rendering. */
 import { BULLET } from '../core/config';
-import type { DanmakuFrameResult, PatternHandle, PatternId, PatternOptions, Vec3Like } from '../core/types';
+import type { BulletClearedFn, DanmakuFrameResult, PatternHandle, PatternId, PatternOptions, Vec3Like } from '../core/types';
 import { createEmitter, type EmitCtx, type Emitter } from './patterns';
 import { BulletPool, makeSpawnParams, type CollideResult } from './pool';
 
@@ -66,9 +66,9 @@ export class DanmakuSim {
     return this.frame;
   }
 
-  clear(center?: Vec3Like, radius?: number): number {
-    if (!center) return this.pool.clear(0, 0, 0, -1);
-    return this.pool.clear(center.x, center.y, center.z, radius ?? 1e9);
+  clear(center?: Vec3Like, radius?: number, onCleared?: BulletClearedFn): number {
+    if (!center) return this.pool.clear(0, 0, 0, -1, onCleared);
+    return this.pool.clear(center.x, center.y, center.z, radius ?? 1e9, onCleared);
   }
 
   /** Remove everything immediately (no pop) and stop emitters. */

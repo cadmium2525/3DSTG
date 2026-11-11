@@ -54,3 +54,11 @@ export const ICON_SOUND_ON =
 
 export const ICON_SOUND_OFF =
   '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" fill-opacity="0.25"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
+
+/** 光の結界 (bomb) icon: hexagonal barrier with a radiant core. */
+export const ICON_BARRIER =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2z" stroke-width="1.4"/><path d="M12 7.3l4.1 2.35v4.7L12 16.7l-4.1-2.35v-4.7z" stroke-width="1.1" fill="currentColor" fill-opacity="0.22"/><path d="M12 2.4v4.9M20.3 7.2l-4.2 2.45M20.3 16.8l-4.2-2.45M12 21.6v-4.9M3.7 16.8l4.2-2.45M3.7 7.2l4.2 2.45" stroke-width="0.8" stroke-opacity="0.7"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg>';
+
+/** Small HUD pip for one bomb in stock. */
+export const BARRIER_PIP =
+  '<svg class="bd-bomb-pip" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2z" fill="rgba(255,226,150,0.18)" stroke="#ffe39a" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 7.6l3.8 2.2v4.4L12 16.4l-3.8-2.2V9.8z" fill="#bff6ff" fill-opacity="0.55"/><circle cx="12" cy="12" r="2" fill="#fff"/></svg>';

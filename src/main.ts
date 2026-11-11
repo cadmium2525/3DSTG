@@ -3,7 +3,7 @@
  * exposes debug hooks (window.__bloom) + URL params for automated testing:
  *   ?autostart=1  start immediately      ?invincible=1  no damage
  *   ?boss=1       start at the boss      ?seed=N        deterministic seed
- *   ?midboss=1    start at the mid-boss
+ *   ?midboss=1    start at the mid-boss  ?power=N  start at shot power Lv N (1..4)
  */
 import { createDanmaku } from './danmaku';
 import { createUI } from './ui';
@@ -51,6 +51,9 @@ const ui = createUI(
     onSettingsChanged() {
       game.settingsChanged();
     },
+    onBomb() {
+      game.useBomb();
+    },
   },
   save,
 );
@@ -66,7 +69,8 @@ for (const ev of ['touchend', 'pointerup', 'keydown'] as const) {
 document.getElementById('ui-root')!.addEventListener(
   'pointerup',
   (e) => {
-    if ((e.target as Element | null)?.closest?.('button')) audio.sfx('uiTap');
+    // (the bomb button has its own sound)
+    if ((e.target as Element | null)?.closest?.('button:not(.bd-bomb)')) audio.sfx('uiTap');
   },
   { capture: true },
 );
@@ -75,6 +79,7 @@ if (flag('invincible')) game.setInvincible(true);
 if (flag('boss')) game.bossOnStart = true;
 if (flag('midboss')) game.midBossOnStart = true;
 if (flag('autostart') || flag('boss') || flag('midboss')) game.start();
+if (params.has('power')) game.setPower(Number(params.get('power')) || 1);
 
 declare global {
   interface Window {
@@ -87,6 +92,12 @@ declare global {
       movePlayer(x: number, y: number): void;
       pause(paused: boolean): void;
       breakBossPhase(): void;
+      /** Fire the bomb (光の結界); false when not usable. */
+      bomb(): boolean;
+      /** Set shot power level 1..4. */
+      setPower(n: number): void;
+      /** Drop items as if an enemy died ahead (stars, power orbs, optional x/y/z). */
+      dropItems(stars: number, orbs: number, x?: number, y?: number, z?: number): void;
       seed: number;
     };
   }
@@ -101,5 +112,8 @@ window.__bloom = {
   movePlayer: (x, y) => game.movePlayer(x, y),
   pause: (p) => game.setPaused(p),
   breakBossPhase: () => game.breakBossPhase(),
+  bomb: () => game.useBomb(),
+  setPower: (n) => game.setPower(n),
+  dropItems: (s, o, x, y, z) => game.debugDrop(s, o, x, y, z),
   seed,
 };

@@ -18,6 +18,8 @@ export class Input {
 
   /** Called when P / Esc is pressed. */
   onPauseKey: (() => void) | null = null;
+  /** X / B: bomb (desktop testing). */
+  onBombKey: (() => void) | null = null;
 
   constructor(private el: HTMLElement) {
     el.addEventListener('pointerdown', this.onDown, { passive: false });
@@ -88,6 +90,11 @@ export class Input {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'p' || k === 'Escape') {
       if (!e.repeat) this.onPauseKey?.();
+      e.preventDefault();
+      return;
+    }
+    if (k === 'x' || k === 'b') {
+      if (!e.repeat) this.onBombKey?.();
       e.preventDefault();
       return;
     }

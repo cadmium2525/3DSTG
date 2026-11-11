@@ -5,9 +5,9 @@
  */
 import * as THREE from 'three';
 import { PALETTE } from '../core/config';
-import { SHOT } from './StageData';
+import { SHOT, SHOT_LEVELS } from './StageData';
 
-const MAX_SHOTS = 160;
+const MAX_SHOTS = 240;
 export const MAX_TARGETS = 48;
 /** Shots are recycled past this Z. */
 const SHOT_FAR_Z = -90;
@@ -52,6 +52,7 @@ export class Shots {
   private vy = new Float32Array(MAX_SHOTS);
   private vz = new Float32Array(MAX_SHOTS);
   private target = new Int32Array(MAX_SHOTS);
+  private outer = new Uint8Array(MAX_SHOTS);
   private alive = new Uint8Array(MAX_SHOTS);
   private cursor = 0;
   private cooldown = 0;
@@ -61,12 +62,21 @@ export class Shots {
   private fwd = new THREE.Vector3(0, 0, -1);
   private one = new THREE.Vector3(1, 1, 1);
   private p = new THREE.Vector3();
+  private colInner = new THREE.Color(PALETTE.cyan).multiplyScalar(1.6);
+  private colOuter = new THREE.Color(PALETTE.gold).lerp(new THREE.Color(PALETTE.white), 0.35).multiplyScalar(1.5);
+  /** Shot power level 1..4 (SHOT_LEVELS). */
+  level = 1;
+
+  /** Damage of one shot at the current level. */
+  get damage(): number {
+    return SHOT_LEVELS[this.level - 1].damage;
+  }
 
   constructor() {
     const geo = new THREE.OctahedronGeometry(1, 0);
     geo.scale(0.075, 0.075, 0.95);
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(PALETTE.cyan).multiplyScalar(1.6),
+      color: 0xffffff, // tinted per instance (inner streams cyan, outer ones pale gold)
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
@@ -75,6 +85,8 @@ export class Shots {
     });
     this.mesh = new THREE.InstancedMesh(geo, mat, MAX_SHOTS);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.setColorAt(0, this.colInner);
+    this.mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 3;
@@ -105,7 +117,7 @@ export class Shots {
     return best;
   }
 
-  private spawn(x: number, y: number, z: number, t: Targets, spreadX: number): void {
+  private spawn(x: number, y: number, z: number, t: Targets, spreadX: number, outer: boolean): void {
     const i = this.cursor;
     this.cursor = (this.cursor + 1) % MAX_SHOTS;
     const id = this.pickTarget(t, x, y, z);
@@ -122,6 +134,7 @@ export class Shots {
     this.vy[i] = this.dir.y;
     this.vz[i] = this.dir.z;
     this.target[i] = id;
+    this.outer[i] = outer ? 1 : 0;
     this.alive[i] = 1;
   }
 
@@ -135,8 +148,11 @@ export class Shots {
       this.cooldown -= dt;
       while (this.cooldown <= 0) {
         this.cooldown += 1 / SHOT.rate;
-        this.spawn(origin.x - 0.2, origin.y + 0.02, origin.z - 0.25, t, -1);
-        this.spawn(origin.x + 0.2, origin.y + 0.02, origin.z - 0.25, t, 1);
+        const streams = SHOT_LEVELS[this.level - 1].streams;
+        for (let k = 0; k < streams.length; k++) {
+          const st = streams[k];
+          this.spawn(origin.x + st.x, origin.y + 0.02 - (st.outer ? 0.06 : 0), origin.z - 0.25, t, st.spread, !!st.outer);
+        }
         volleys++;
       }
     } else {
@@ -201,10 +217,14 @@ export class Shots {
       this.q.setFromUnitVectors(this.fwd, this.dir);
       this.p.set(x1, y1, z1);
       this.m.compose(this.p, this.q, this.one);
+      this.mesh.setColorAt(n, this.outer[i] ? this.colOuter : this.colInner);
       this.mesh.setMatrixAt(n++, this.m);
     }
     this.mesh.count = n;
-    if (n > 0) this.mesh.instanceMatrix.needsUpdate = true;
+    if (n > 0) {
+      this.mesh.instanceMatrix.needsUpdate = true;
+      this.mesh.instanceColor!.needsUpdate = true;
+    }
     return volleys;
   }
 }

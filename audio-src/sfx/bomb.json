@@ -1,0 +1,23 @@
+{
+  "//": "光の結界 (bomb): soft low swell + big airy whoosh outward + bright crystalline shimmer and bell bloom.",
+  "mix": [
+    { "preset": "whooshheavy", "length": 1.1, "tone": 0.3, "space": 0.6, "punch": 0.5, "seed": 41 },
+    { "preset": "boom", "length": 0.7, "punch": 0.5, "tone": 0.2, "gain": -8, "seed": 42 },
+    { "preset": "magic", "at": 0.05, "length": 1.1, "tone": 0.6, "space": 0.7, "gain": -6, "seed": 43 },
+    { "preset": "sparkle", "at": 0.15, "length": 1.2, "tone": 0.7, "space": 0.6, "gain": -8, "seed": 44 },
+    { "at": 0.04, "layers": [
+      { "src": "modal", "freq": 1568, "modes": [[1, 1.4, 1], [2.76, 0.5, 0.3], [5.4, 0.2, 0.1]], "amp": { "a": 0.003, "d": 1.2 }, "gain": -4, "pan": -0.25 },
+      { "at": 0.06, "src": "modal", "freq": 2349, "modes": [[1, 1.4, 1], [2.76, 0.5, 0.3], [5.4, 0.2, 0.1]], "amp": { "a": 0.003, "d": 1.2 }, "gain": -5, "pan": 0.25 },
+      { "at": 0.12, "src": "modal", "freq": 3136, "modes": [[1, 1.2, 1], [2.76, 0.4, 0.3]], "amp": { "a": 0.003, "d": 1.0 }, "gain": -8 },
+      { "src": "noise", "filter": { "type": "bp", "freq": [[0, 900], [0.5, 7000, "exp"], [1.4, 3000]], "q": 0.8 }, "amp": { "a": 0.04, "h": 0.15, "d": 1.0 }, "gain": -10, "width": 0.9 },
+      { "src": "sine", "freq": [[0, 110], [0.6, 55, "exp"]], "amp": { "a": 0.02, "h": 0.1, "d": 0.5 }, "gain": -6 }
+    ],
+      "fx": [{ "type": "reverb", "size": 1.8, "decay": 2.4, "mix": 0.32 }] }
+  ],
+  "maxLen": 2.6,
+  "peak": -1,
+  "post": [
+    { "type": "gain", "db": 6 },
+    { "type": "limiter", "ceiling": -1, "release": 0.25 }
+  ]
+}
