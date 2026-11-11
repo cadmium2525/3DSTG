@@ -51,7 +51,7 @@ export function makeSpawnParams(): SpawnParams {
 const F_GRAZED = 1;
 const F_DEAD = 2; // popping (cleared / hit): visual only, no collision
 const POP_TIME = 0.22;
-const MAX_SPEED = BULLET.speedMax + 0.5;
+const MAX_SPEED = BULLET.speedMax;
 const PLAYER_HIT = PLAYER.hitRadius;
 const PLAYER_GRAZE = PLAYER.grazeRadius;
 export { POP_TIME };

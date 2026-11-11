@@ -210,7 +210,7 @@ export class DanmakuRenderer {
       const mo = m * 4;
       mp[mo] = tx; mp[mo + 1] = ty;
       mp[mo + 2] = 0.46 - 0.3 * k * k;
-      mp[mo + 3] = Math.min(1, Math.sqrt(k) * (0.1 + 0.6 * threat * threat));
+      mp[mo + 3] = Math.min(1, Math.sqrt(k) * (0.14 + 0.7 * threat * threat));
       mc[mo] = pool.cr[i]; mc[mo + 1] = pool.cg[i]; mc[mo + 2] = pool.cb[i]; mc[mo + 3] = k;
       m++;
     }

@@ -215,7 +215,7 @@ class PetalBloom extends Emitter {
     this.psi0 = this.rng() * TAU;
   }
 
-  protected emit(te: number, ctx: EmitCtx): number {
+  protected emit(_te: number, ctx: EmitCtx): number {
     const sp = ctx.sp;
     const I = this.I, P = this.P;
     // Low quality drops one layer per bloom (plus wider spacing below).
@@ -417,7 +417,7 @@ class ConstellationRain extends Emitter {
     }
   }
 
-  protected emit(te: number, ctx: EmitCtx): number {
+  protected emit(_te: number, ctx: EmitCtx): number {
     const sp = ctx.sp;
     const I = this.I, rng = this.rng;
     const curves = I >= 0.4 ? 2 : 1;
@@ -465,7 +465,7 @@ class AimedBurst extends Emitter {
     super(opts, 0.25);
   }
 
-  protected emit(te: number, ctx: EmitCtx): number {
+  protected emit(_te: number, ctx: EmitCtx): number {
     const sp = ctx.sp;
     const I = this.I;
     // Odd count so the centre bullet is aimed straight at the player.
