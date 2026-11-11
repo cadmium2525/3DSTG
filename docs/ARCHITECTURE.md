@@ -4,7 +4,7 @@
 
 ## 技術
 Three.js + TypeScript + Vite。静的ビルド (`npm run build` → `dist/`) を GitHub Actions で Pages に公開。
-外部アセットなし（モデル・弾・音はすべてコード生成）。
+3D モデル・弾はコード生成。BGM/SE は「かなでる」で作成した MP3（`public/audio/`、生成元 `audio-src/`）。タイトルの立ち絵は `public/title/`。
 
 ## 座標系
 X=左右 / Y=上下 / Z=奥行き。自機は操作平面 `z=0` 上を動き `-Z` を向く。敵は `z≈-60`、敵弾は `+Z` 方向へ迫る。
@@ -16,8 +16,8 @@ X=左右 / Y=上下 / Z=奥行き。自機は操作平面 `z=0` 上を動き `-Z
 | `src/core/` | 共有の定数と型 | `config.ts`, `types.ts` |
 | `src/character/` | 主人公の手続き生成3Dモデル | `class Heroine { group; update(dt, motion); dispose() }` |
 | `src/danmaku/` | 敵弾プール(InstancedMesh)、弾幕4種+狙い弾、衝突・グレイズ、接近予兆 | `createDanmaku(): Danmaku` |
-| `src/game/`, `src/main.ts` | ループ、カメラ、入力、自機、ショット、敵、ボス、ステージ進行、背景、品質自動調整 | — |
-| `src/ui/`, `src/audio/`, `src/save.ts` | DOM HUD・タイトル・リザルト・ポーズ、Web Audio 合成 BGM/SE、localStorage | `createUI()`, `createAudio()`, `createSaveStore()` |
+| `src/game/`, `src/main.ts` | ループ、カメラ、入力、自機、ショット、敵、中ボス、ボス、タイトル演出、ステージ進行、背景、品質自動調整 | — |
+| `src/ui/`, `src/audio/`, `src/save.ts` | DOM HUD・タイトル・リザルト・ポーズ、Web Audio で BGM/SE ファイル再生、localStorage | `createUI()`, `createAudio()`, `createSaveStore()` |
 
 ## 1プレイの流れ（60〜90秒）
 タイトル → 道中(約25〜30秒: 小型敵 + 狙い弾、波紋リング/星座の雨を単体で紹介)
