@@ -224,7 +224,8 @@ export class Game {
         this.enemies.retreatAll();
         this.ui.announce('WARNING', '強大な魔力反応が接近中');
         this.sfx('bossWarning');
-        this.audio.stopBgm();
+        // Boss theme starts under the alarm (the alarm ducks the BGM).
+        this.audio.playBgm('boss');
         this.rig.shake(0.08, 1.5);
       },
       midBoss: () => this.beginMidBoss(),
@@ -436,7 +437,7 @@ export class Game {
     this.danmaku.clear();
     this.effects.burst(p.x, p.y, p.z, PALETTE.pink, 50, 9, 0.35, 0.9);
     this.effects.burst(p.x, p.y, p.z, PALETTE.white, 20, 5, 0.25, 0.6);
-    this.effects.ring(p.x, p.y, p.z, PALETTE.pink, 3.2, 0.6);
+    this.effects.ring(p.x, p.y, p.z, PALETTE.pink, 1.7, 0.45);
     this.grazeChain = 0;
     const dead = this.player.hit();
     this.hudDirty = true;

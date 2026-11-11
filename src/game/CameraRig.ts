@@ -43,7 +43,9 @@ export class CameraRig {
     const c = this.camera;
     c.aspect = aspect;
     // Title: pull back on wide/short screens so the heroine clears the title text.
-    this.titleZoom = Math.min(1.4, Math.max(1, aspect / 0.75));
+    // Short screens: the title header takes proportionally more room, so pull back too.
+    const shortZoom = Math.min(1.35, Math.max(1, 800 / Math.max(1, h)));
+    this.titleZoom = Math.min(1.4, Math.max(1, aspect / 0.75, shortZoom));
     // Default vertical fov; widen when the screen is too narrow (or too short)
     // for the area the player can reach relative to the following camera.
     const d = CAMERA.distance;

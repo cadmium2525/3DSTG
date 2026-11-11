@@ -57,6 +57,20 @@ const ui = createUI(
 
 game.boot(ui);
 
+// Unlock audio on the first gesture anywhere so the title theme plays before START.
+const unlockOnce = () => audio.unlock();
+for (const ev of ['touchend', 'pointerup', 'keydown'] as const) {
+  window.addEventListener(ev, unlockOnce, { capture: true, passive: true });
+}
+// UI tap sound for every button press in the overlay.
+document.getElementById('ui-root')!.addEventListener(
+  'pointerup',
+  (e) => {
+    if ((e.target as Element | null)?.closest?.('button')) audio.sfx('uiTap');
+  },
+  { capture: true },
+);
+
 if (flag('invincible')) game.setInvincible(true);
 if (flag('boss')) game.bossOnStart = true;
 if (flag('midboss')) game.midBossOnStart = true;

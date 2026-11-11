@@ -77,6 +77,8 @@ type Phase = 'hidden' | 'card' | 'turnCard' | 'turnModel' | 'enter';
 const T_CARD = 0.42;
 const T_MODEL = 0.85;
 const T_ENTER = 0.5;
+/** Card turn angle at which the 3D model takes over (before edge-on, so it never vanishes). */
+const SWAP_ANGLE = 1.15;
 
 const easeInOut = (t: number) => t * t * (3 - 2 * t);
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t) * (1 - t);
@@ -243,7 +245,7 @@ export class TitleIntro {
       }
       case 'turnCard': {
         const u = Math.min(1, this.t / T_CARD);
-        spin = easeInOut(u) * (Math.PI / 2);
+        spin = easeInOut(u) * SWAP_ANGLE;
         white = easeInOut(u);
         cardOn = true;
         modelOn = false;
@@ -261,9 +263,9 @@ export class TitleIntro {
       }
       case 'turnModel': {
         const u = Math.min(1, this.t / T_MODEL);
-        // Card was rotated +90° from facing the camera; the model continues
-        // from side-on (yaw 1.5π) to its back facing the camera (2π ≡ 0).
-        this.player.setYaw(Math.PI * 1.5 + easeOut(u) * Math.PI * 0.5);
+        // The card was turned SWAP_ANGLE from facing the camera; the model continues
+        // from that angle (yaw π + SWAP_ANGLE) to its back facing the camera (2π ≡ 0).
+        this.player.setYaw(Math.PI + SWAP_ANGLE + easeOut(u) * (Math.PI - SWAP_ANGLE));
         heroine.flash = 1 - easeOut(Math.min(1, u * 1.3));
         fxTarget = 0;
         if (u >= 1) {
