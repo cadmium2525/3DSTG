@@ -94,6 +94,8 @@ export class Game {
   private dropBank = 0;
   /** > 0 while a hit waits for a 決死ボム (deathbomb). */
   private hitPendingT = 0;
+  /** Mirrors bomb.active on #app[data-bomb-active] (the UI dims the button). */
+  private bombBusy = false;
 
   // Score / run stats.
   score = 0;
@@ -305,6 +307,9 @@ export class Game {
     this.items.clear();
     this.bomb.reset();
     this.hitPendingT = 0;
+    delete this.app.dataset.hitPending;
+    delete this.app.dataset.bombActive;
+    this.bombBusy = false;
   }
 
   toTitle(): void {
@@ -496,7 +501,7 @@ export class Game {
     if (l > before && this.state === 'playing') {
       const p = this.player.position;
       this.sfx('powerUp', 0.2);
-      this.effects.ring(p.x, p.y, p.z, PALETTE.gold, 2.4, 0.5);
+      this.effects.ring(p.x, p.y, p.z, PALETTE.gold, 1.6, 0.45);
       this.effects.burst(p.x, p.y, p.z, PALETTE.white, 18, 5, 0.22, 0.6);
     }
   }
@@ -537,6 +542,7 @@ export class Game {
     if (!pl.alive || this.bombs <= 0 || this.bomb.active) return false;
     const deathbomb = this.hitPendingT > 0;
     this.hitPendingT = 0;
+    delete this.app.dataset.hitPending;
     this.bombs--;
     const p = pl.position;
     this.bomb.start(p);
@@ -556,6 +562,7 @@ export class Game {
   private beginHitPending(): void {
     const p = this.player.position;
     this.hitPendingT = BOMB.deathbombWindow;
+    this.app.dataset.hitPending = '1'; // the UI makes the bomb button flash
     this.effects.burst(p.x, p.y, p.z, PALETTE.pink, 14, 4, 0.22, 0.4);
     this.rig.shake(0.1, 4);
   }
@@ -572,6 +579,7 @@ export class Game {
     const p = this.player.position;
     this.misses++;
     this.hitPendingT = 0;
+    delete this.app.dataset.hitPending;
     this.sfx('playerHit');
     this.ui.flashDamage();
     this.rig.shake(0.35, 3.5);
@@ -647,8 +655,14 @@ export class Game {
     let pendingU = -1;
     if (this.hitPendingT > 0 && this.state === 'playing') {
       this.hitPendingT -= dt;
-      if (this.hitPendingT <= 0) this.onPlayerHit();
-      else {
+      if (this.hitPendingT <= 0) {
+        // The stage may have ended meanwhile (boss down): then the hit is simply void.
+        if (this.phase === 'stage' || this.phase === 'boss') this.onPlayerHit();
+        else {
+          this.hitPendingT = 0;
+          delete this.app.dataset.hitPending;
+        }
+      } else {
         pendingU = 1 - this.hitPendingT / BOMB.deathbombWindow;
         dt *= BOMB.deathbombTimeScale;
       }
@@ -691,6 +705,12 @@ export class Game {
 
       // Bomb: clear bullets inside the sweeping radius (→ stars), damage ticks.
       const ticks = this.bomb.update(dt, p.position, pendingU);
+      const busy = this.bomb.active;
+      if (busy !== this.bombBusy) {
+        this.bombBusy = busy;
+        if (busy) this.app.dataset.bombActive = '1';
+        else delete this.app.dataset.bombActive;
+      }
       for (let k = 0; k < ticks; k++) this.bombTick();
       const cr = this.bomb.clearRadius;
       if (cr > 0) this.danmaku.clear(p.position, cr, this.items.cancelBullet);

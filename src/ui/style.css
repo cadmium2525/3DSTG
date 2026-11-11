@@ -702,6 +702,18 @@
   box-shadow: 0 0 8px rgba(255, 209, 102, 0.8);
   text-shadow: none;
 }
+/* While a barrier is up the button cannot fire again. */
+[data-bomb-active] .bd-bomb {
+  opacity: 0.55;
+}
+/* 決死ボム window (set by the game on #app): the button flashes pink. */
+[data-hit-pending] .bd-bomb:not(.is-empty) {
+  color: #fff;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.7), rgba(255, 111, 181, 0.55));
+  box-shadow: 0 0 0 2px #fff inset, 0 0 22px rgba(255, 111, 181, 0.95), 0 0 6px #fff;
+  transform: scale(1.08);
+  transition: none;
+}
 .bd-bomb.is-empty {
   color: rgba(214, 222, 255, 0.45);
   background: rgba(14, 10, 40, 0.42);

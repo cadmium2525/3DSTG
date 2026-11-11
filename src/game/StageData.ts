@@ -94,8 +94,8 @@ export interface MidBossPhaseDef {
 export const MIDBOSS = {
   name: '硝子蝶 ルクシア',
   sub: 'MID BOSS — 夜をわたる硝子の翅',
-  /** ×1.2 since shot power exists: the player usually arrives at Lv2–3 (Lv2 = the old fight length). */
-  maxHp: 480,
+  /** ×1.075 since shot power exists (Lv1 still just breaks each phase in time; Lv2–3, the usual, is a bit faster). */
+  maxHp: 430,
   /** Fly-in (invulnerable for the first ~60%). */
   enterSec: 2.4,
   /** Pause between the two phases (bullets cleared). */
@@ -252,8 +252,8 @@ export const ITEMS = {
   magnetSec: 1.2,
   /** Pickup / attraction radius on the play plane (attraction bigger in slow mode). */
   pickupRadius: 0.62,
-  attractRadius: 1.6,
-  attractRadiusSlow: 2.6,
+  attractRadius: 1.9,
+  attractRadiusSlow: 2.8,
   /** While the heroine is above this y every item homes to her (upper "collection line"). */
   collectLineY: 2.2,
 };

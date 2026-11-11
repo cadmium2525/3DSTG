@@ -127,7 +127,7 @@ void main() {
   float r = length(vUv);
   if (r > 1.0) discard;
   float a = atan(vUv.y, vUv.x);
-  float ring = exp(-pow((r - 0.86) * 18.0, 2.0));
+  float ring = exp(-pow((r - 0.86) * 12.0, 2.0)) * 1.4;
   float ticks = smoothstep(0.9, 1.0, cos(a * 6.0 + uTime * 4.0)) * smoothstep(0.55, 0.75, r) * (1.0 - smoothstep(0.8, 0.86, r));
   vec3 col = mix(vec3(1.0, 0.45, 0.72), vec3(1.0), 0.35) * (ring + ticks * 0.8);
   gl_FragColor = vec4(col * uAmt, 1.0);
@@ -245,7 +245,7 @@ export class Bomb {
       this.cue.visible = true;
       this.cue.position.copy(player);
       this.cue.scale.setScalar(s);
-      this.cueMat.uniforms.uAmt.value = 0.6 + 0.4 * Math.sin(this.time * 40);
+      this.cueMat.uniforms.uAmt.value = 0.8 + 0.4 * Math.sin(this.time * 40);
       this.cueMat.uniforms.uTime.value = this.time;
     } else {
       this.cue.visible = false;
@@ -276,7 +276,7 @@ export class Bomb {
     const u = this.domeMat.uniforms;
     u.uTime.value = this.time;
     u.uFade.value = Math.min(1, t / 0.08) * (1 - out) * (1 - out) * (0.85 + 0.15 * Math.sin(t * 9)) * 0.85;
-    u.uFlash.value = Math.max(0, 1 - t / 0.4) * 0.8;
+    u.uFlash.value = Math.max(0, 1 - t / 0.4) * 0.6;
 
     // Start flash: grows fast, gone after ~0.7 s.
     const fu = t / 0.7;
@@ -284,7 +284,7 @@ export class Bomb {
     if (fu < 1) {
       this.flash.position.set(player.x, player.y, player.z + 0.3);
       this.flash.scale.setScalar(1.5 + 4.5 * Math.sqrt(fu));
-      this.flashMat.uniforms.uAmt.value = (1 - fu) * (1 - fu) * 0.7;
+      this.flashMat.uniforms.uAmt.value = (1 - fu) * (1 - fu) * 0.55;
       this.flashMat.uniforms.uTime.value = this.time;
     }
 

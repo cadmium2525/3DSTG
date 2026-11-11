@@ -16,12 +16,31 @@ X=左右 / Y=上下 / Z=奥行き。自機は操作平面 `z=0` 上を動き `-Z
 | `src/core/` | 共有の定数と型 | `config.ts`, `types.ts` |
 | `src/character/` | 主人公の手続き生成3Dモデル | `class Heroine { group; update(dt, motion); dispose() }` |
 | `src/danmaku/` | 敵弾プール(InstancedMesh)、弾幕4種+狙い弾、衝突・グレイズ、接近予兆 | `createDanmaku(): Danmaku` |
-| `src/game/`, `src/main.ts` | ループ、カメラ、入力、自機、ショット、敵、中ボス、ボス、タイトル演出、ステージ進行、背景、品質自動調整 | — |
+| `src/game/`, `src/main.ts` | ループ、カメラ、入力、自機、ショット（パワー Lv1〜4）、アイテム、ボム、敵、中ボス、ボス、タイトル演出、ステージ進行、背景、品質自動調整 | — |
 | `src/ui/`, `src/audio/`, `src/save.ts` | DOM HUD・タイトル・リザルト・ポーズ、Web Audio で BGM/SE ファイル再生、localStorage | `createUI()`, `createAudio()`, `createSaveStore()` |
 
 ## 1プレイの流れ（60〜90秒）
 タイトル → 道中(約25〜30秒: 小型敵 + 狙い弾、波紋リング/星座の雨を単体で紹介)
 → ボス(螺旋回廊 → 花弁の開花 → 波紋リング+星座の雨、HP かタイムアウトで移行) → リザルト → 再挑戦。
+
+## アイテム・ショットパワー・ボム（光の少女の力 = 光：白・金・シアン）
+- **アイテム**（`src/game/Items.ts`、1 つの InstancedMesh のビルボード、プール 384、毎フレーム確保なし）
+  - 星のかけら（得点・金/シアンの小さな星）：値 = `ITEMS.starValue` ×（1 + グレイズ連鎖 × `chainBonus`、最大 ×3）。
+    ボム・ボス/中ボスのフェーズ撃破・撃破時に消えた弾は星に変わり（`Danmaku.clear` の `onCleared`。1 回の消去で最大約 90 個、1 個が複数弾分の値 `SCORE.bulletCancel` を持つ）、自機へ吸い込まれる。
+  - 光の玉（パワー）：白い芯＋金のリング＋回転する十字の光芒、ゆっくり上下、光の粒の尾。敵弾（丸い玉）と形が違う。
+  - 動き：撃破地点（z≈-40〜-60）から放物線を描いて操作平面 z=0 の場の中ほどへ 1〜1.4 秒で着地（減速しながら到着）→ ゆっくり下へ流れ 6.5 秒で消える。
+    自機の半径 1.9（低速 2.8）以内・自機が上部（y>2.2）にいる間・マグネット中（ボム、フェーズ撃破、ステージクリア）は自機へ誘導。取得半径 0.62。
+  - ドロップ：`ITEMS.drops`（小型 2〜3 個の星＋0.5〜0.6 個の玉を端数繰り越し、ランタン 8＋4）、ボスのフェーズ撃破 12＋4、中ボスのフェーズ撃破 8＋3、中ボス撃破 16＋10（直接吸い込み）。
+- **ショットパワー**（`SHOT_LEVELS` / `POWER`）：Lv1→2→3→4 に玉 8/12/16 個。Lv1 2 本（従来と同じ DPS 28）、Lv2 3 本 ×1.2、Lv3 4 本（外側は金色の拡散）×1.4、Lv4 5 本 ×1.65。自動照準はそのまま。
+  ボス/中ボスの HP は ×1.3 / ×1.075（ボスは Lv3 で従来とほぼ同じ長さ、Lv1 でも各フェーズを時間内に削れる）。ミスで玉 12 個分を失い（Lv1 未満にはならない）、5 個が飛び散って拾い直せる。最大時の玉は 1000 点。
+- **ボム「光の結界」**（`src/game/Bomb.ts`、`BOMB`）：右下の丸ボタン（押した瞬間に発動）／キーボード X・B。在庫 2、ミスのたびに 2 へ補充。
+  自機の周りに六角格子の光のドーム、始まりの放射光、奥へ走る光の輪。消去半径が 1.15 秒で奥の敵まで広がり 1.5 秒間弾を消し続け（→星）、
+  0.12 秒と 0.55 秒に小型敵へ 30、ボス/中ボスへ 22 のダメージ。2.5 秒無敵（点滅なし）。ショットは撃ち続ける。
+  **決死ボム**：被弾後 0.25 秒（実時間。その間は世界が 0.3 倍速、自機の周りに縮むピンクの輪、ボタンが点滅）以内にボムを押すと被弾を取り消す。
+- HUD：3 段目に「POWER Lv2 ＋ 4 つのゲージ（最大で MAX）」と結界の残数アイコン。
+- 効果音：`itemScore`（連鎖で音程が上がる。`AudioEngine.sfx(name, pitch)`）/ `itemPower` / `powerUp` / `bomb`（`audio-src/sfx/*.json`）。
+- デバッグ：`__bloom.state()` に bombs / power / powerProgress / powerOrbs / maxPower / items / bombActive / hitPending、
+  `__bloom.bomb()`、`__bloom.setPower(n)`、`__bloom.dropItems(stars, orbs, x?, y?, z?)`、URL `?power=N`。
 
 ## フェーズ
 1. 操作検証: 自機移動・カメラ・接近弾・判定
@@ -37,6 +56,7 @@ BGM と SE は作曲アプリ「かなでる」（mp4mp3 リポジトリの `daw
 - `audio-src/bgm/*.gen.mjs` → `*.json`：曲の生成スクリプトと、かなでるの曲 JSON（正本。アプリに貼り付けて編集・試聴できる）。`bars` がそのままループの長さ。
   title（88 BPM・16 小節）/ stage（150・36）/ midboss（160・24）/ boss（170・40）。
 - `audio-src/sfx/*.json`：かなでるの効果音（プリセット・層）または `{"mix":[...], "post":[...], "peak":dB}` の重ね合わせ。名前は `SfxName` と同じ。
+  新しい効果音だけ作るときは `node audio-src/build.mjs --only itemScore,bomb`（他のファイルは変わらない）。
 - `audio-src/build.mjs`（`npm run audio`）：生成 → 自動ミックス（トラック音量）→ かなでるで描画 → 余韻をループ頭に折り返し →
   ループの前後に 0.25 秒の周期的なパディングを付けて MP3（BGM 128kbps ステレオ / SE 96kbps モノラル, 44.1kHz）で `public/audio/` に出力。
   `public/audio/manifest.json` と `src/audio/manifest.ts`（loopStart/loopEnd・bpm・キャッシュ用ハッシュ）も書き出す。
