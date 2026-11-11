@@ -131,7 +131,6 @@ const TITLE_HTML = `
       <span class="bd-logo-main">BLOOM</span>
       <span class="bd-logo-sub"><i></i>DIVE<i></i></span>
     </div>
-    <p class="bd-catch">美しい弾幕を、くぐり抜ける。</p>
     <div class="bd-hipill"><span class="bd-lab">HI-SCORE</span><b class="bd-title-hi">0</b></div>
   </div>
   <div class="bd-title-mid"></div>

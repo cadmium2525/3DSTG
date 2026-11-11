@@ -246,8 +246,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 calc(var(--u) * 3) rgba(120, 170, 255, 0.55));
-  animation: bd-shimmer 5s ease-in-out infinite;
+  filter: drop-shadow(0 0 calc(var(--u) * 3) rgba(140, 160, 255, 0.6));
 }
 .bd-logo-sub {
   display: flex;
@@ -364,6 +363,7 @@
   box-shadow: 0 0 0 1px rgba(160, 220, 255, 0.5), 0 0 calc(var(--u) * 8) rgba(79, 232, 255, 0.55);
   opacity: 0.3;
   animation: bd-breathe 2.4s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 @keyframes bd-breathe {
   0%,
