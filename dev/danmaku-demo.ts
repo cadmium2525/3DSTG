@@ -190,11 +190,15 @@ function runDemo(): void {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  addEventListener('keydown', (e) => { if (e.key === ' ') paused = !paused; });
+  addEventListener('keydown', (e) => {
+    if (e.key === ' ') paused = !paused;
+    if (e.key === 'c') dm.clear(); // bomb-style clear test
+  });
 
   (window as unknown as Record<string, unknown>).__dm = {
     advance(sec: number) { for (let t = 0; t < sec; t += 1 / 60) step(1 / 60); place(); hudText(); renderer.render(scene, camera); },
     stats: () => ({ t: simT, bullets: dm.activeCount, hits, grazes }),
     pause: (p: boolean) => (paused = p),
+    clear: (r?: number) => (r === undefined ? dm.clear() : dm.clear(P, r)),
   };
 }

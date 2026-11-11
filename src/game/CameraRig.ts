@@ -32,6 +32,7 @@ export class CameraRig {
   private rollKick = 0;
   private roll = 0;
   private t = 0;
+  private titleZoom = 1;
 
   constructor() {
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.1, 400);
@@ -41,6 +42,8 @@ export class CameraRig {
     const aspect = w / Math.max(1, h);
     const c = this.camera;
     c.aspect = aspect;
+    // Title: pull back on wide/short screens so the heroine clears the title text.
+    this.titleZoom = Math.min(1.4, Math.max(1, aspect / 0.75));
     // Default vertical fov; widen when the screen is too narrow (or too short)
     // for the area the player can reach relative to the following camera.
     const d = CAMERA.distance;
@@ -88,8 +91,10 @@ export class CameraRig {
 
     // Title pose: in front of the heroine (at the origin), slow gentle orbit.
     const orbit = Math.sin(this.t * 0.17) * 0.45;
-    this.titlePos.set(Math.sin(orbit) * 2.75, -0.02 + Math.sin(this.t * 0.23) * 0.06, Math.cos(orbit) * 2.75);
-    this.titleLook.set(0, -0.2, 0);
+    const td = 2.75 * this.titleZoom;
+    const lift = (this.titleZoom - 1) * 0.5;
+    this.titlePos.set(Math.sin(orbit) * td, -0.02 + lift + Math.sin(this.t * 0.23) * 0.06, Math.cos(orbit) * td);
+    this.titleLook.set(0, -0.2 + lift, 0);
 
     const b = this.blend * this.blend * (3 - 2 * this.blend);
     this.tmpPos.lerpVectors(this.titlePos, this.playPos, b);

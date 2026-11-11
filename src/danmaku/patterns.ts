@@ -139,7 +139,7 @@ class SpiralCorridor extends Emitter {
   private readonly phase0: number;
   private readonly curl: number;
   private count = 0;
-  private lastPhi = 0;
+  private lastPhi = NaN;
 
   constructor(opts: PatternOptions) {
     super(opts, 0.1);
@@ -156,7 +156,7 @@ class SpiralCorridor extends Emitter {
     const w0 = lerp(0.42, 0.7, I);
     // Gap phase: turning one way, angular speed breathing between ~0 and ~2x w0.
     const phi = this.phase0 + this.dir * (w0 * te + 2 * w0 * Math.sin(te * 0.5));
-    const dPhi = Math.abs(phi - this.lastPhi);
+    const dPhi = Number.isNaN(this.lastPhi) ? 0.12 : Math.abs(phi - this.lastPhi);
     this.lastPhi = phi;
     const c = this.count++;
     // Hub wanders a little so the corridor itself drifts.
@@ -191,7 +191,8 @@ class SpiralCorridor extends Emitter {
       setColor(sp, COL.gold, 0.25);
       spawnPolar(ctx, 0, 0);
     }
-    return 1 / (lerp(3.6, 5.2, I) * d);
+    // Fewer emissions per arm when there are three arms (keeps the bullet budget).
+    return 1 / (lerp(3.6, 5.2, I) * d * (this.arms === 3 ? 0.72 : 1));
   }
 }
 
@@ -205,7 +206,6 @@ class SpiralCorridor extends Emitter {
 class PetalBloom extends Emitter {
   private readonly P: number;
   private readonly psi0: number;
-  private readonly layers = 5;
   private bloom = 0;
   private layer = 0;
 
@@ -217,19 +217,22 @@ class PetalBloom extends Emitter {
 
   protected emit(te: number, ctx: EmitCtx): number {
     const sp = ctx.sp;
-    const I = this.I, P = this.P, L = this.layers;
+    const I = this.I, P = this.P;
+    // Low quality drops one layer per bloom (plus wider spacing below).
+    const L = ctx.density < 0.7 ? 4 : 5;
     const opening = (this.bloom & 1) === 0;
     const li = opening ? this.layer : L - 1 - this.layer;
     const f = li / (L - 1);
     const R = lerp(0.95, 4.85, f);
     const psi = this.psi0 + this.bloom * (Math.PI / P) + this.bloom * 0.07;
-    const spacing = 0.56 / Math.sqrt(ctx.density);
+    const spacing = lerp(0.54, 0.62, I) / Math.sqrt(ctx.density);
     sp.cx = 0; sp.cy = 0;
     sp.om = (opening ? 1 : -1) * 0.5;
     sp.ep = 1.2;
     sp.accel = 2.2;
     const half = Math.PI / P;
-    const inner = opening ? COL.pink : COL.purple;
+    // Alternate saturated layer colours (mixing toward white blows out under additive blending).
+    const layerCol = li & 1 ? COL.purple : opening ? COL.pink : COL.cyan;
     for (let m = 0; m < P; m++) {
       const pc = psi + (TAU * m) / P;
       // March along the petal outline with roughly constant arc-length spacing.
@@ -242,10 +245,10 @@ class PetalBloom extends Emitter {
           const x = rho * Math.cos(th), y = rho * Math.sin(th);
           if (inClip(x, y)) {
             const tip = s > 0.97;
-            sp.r0 = 0.3 * rho + 0.5;
-            sp.size = tip ? 1.3 : 1.0;
-            if (tip) setColor(sp, COL.gold, 0.2);
-            else mixColor(sp, inner, COL.gold, f * 0.75);
+            sp.r0 = 0.42 * rho + 0.3;
+            sp.size = tip ? 1.3 : 0.95 + 0.1 * f;
+            if (tip) setColor(sp, COL.gold, 0.1);
+            else mixColor(sp, layerCol, COL.gold, s > 0.85 ? 0.35 : 0);
             spawnPolar(ctx, rho, th);
           }
         }
@@ -256,14 +259,14 @@ class PetalBloom extends Emitter {
     }
     // One centre bullet per layer: the bloom's heart.
     sp.r0 = 0; sp.size = 1.1;
-    setColor(sp, COL.white);
+    setColor(sp, COL.gold);
     spawnPolar(ctx, 0, 0);
 
     this.layer++;
-    if (this.layer < L) return 0.115;
+    if (this.layer < L) return 0.115 * (5 - 1) / (L - 1);
     this.layer = 0;
     this.bloom++;
-    return lerp(2.4, 1.55, I) - 0.115 * (L - 1);
+    return lerp(2.4, 1.75, I) - 0.115 * 4;
   }
 }
 
@@ -294,10 +297,10 @@ class RippleRing extends Emitter {
     const g0 = this.gapAngle;
     const curve = (rng() - 0.5) * 0.5;
     const width = lerp(1.55, 1.2, I);
-    const dR = 0.62;
+    const dR = 0.65 / Math.sqrt(ctx.density);
     const rOff = rng() * dR;
     const outward = (this.wave & 1) === 0;
-    const spacing = 0.54 / Math.sqrt(ctx.density);
+    const spacing = 0.58 / Math.sqrt(ctx.density);
     sp.cx = (rng() - 0.5) * 0.6;
     sp.cy = (rng() - 0.5) * 0.8;
     sp.ep = 1;
@@ -419,7 +422,7 @@ class ConstellationRain extends Emitter {
     const I = this.I, rng = this.rng;
     const curves = I >= 0.4 ? 2 : 1;
     const spacing = 0.42 / Math.sqrt(ctx.density);
-    const maxLen = lerp(15, 21, I);
+    const maxLen = lerp(15, 21, I) * Math.sqrt(ctx.density);
     for (let c = 0; c < curves; c++) {
       this.buildCurve(Math.floor(rng() * 3));
       const spin = (rng() - 0.5) * 0.9;

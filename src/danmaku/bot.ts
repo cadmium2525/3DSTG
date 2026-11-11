@@ -102,7 +102,7 @@ export class DodgeBot {
 }
 
 export interface FairnessRow {
-  pattern: PatternId;
+  pattern: string;
   seeds: number;
   botSurvived: number;
   botHits: number;
@@ -120,8 +120,9 @@ export function bossOrigin(t: number, out: Vec3Like): Vec3Like {
   return out;
 }
 
+/** Simulate `seeds` runs of a pattern (or several at once) with the bot and with a stationary player at (0,0). */
 export function runFairness(
-  pattern: PatternId,
+  pattern: PatternId | PatternId[],
   opts: { seeds?: number; duration?: number; intensity?: number; dt?: number; quality?: 0 | 1 | 2; botSpeed?: number } = {},
 ): FairnessRow {
   const seeds = opts.seeds ?? 10;
@@ -129,7 +130,7 @@ export function runFairness(
   const dt = opts.dt ?? 1 / 30;
   const intensity = opts.intensity ?? 0.5;
   const row: FairnessRow = {
-    pattern, seeds, botSurvived: 0, botHits: 0, stationaryHitRuns: 0, stationaryFirstHit: 0, peak: 0, avgAlive: 0,
+    pattern: Array.isArray(pattern) ? pattern.join('+') : pattern, seeds, botSurvived: 0, botHits: 0, stationaryHitRuns: 0, stationaryFirstHit: 0, peak: 0, avgAlive: 0,
   };
   let firstSum = 0, aliveSum = 0, aliveN = 0;
   for (let s = 1; s <= seeds; s++) {
@@ -139,7 +140,9 @@ export function runFairness(
       const bot = new DodgeBot(opts.botSpeed ?? 6);
       let t = 0;
       const o = { x: 0, y: 0, z: 0 };
-      sim.startPattern(pattern, { origin: () => bossOrigin(t, o), duration, intensity, seed: s * 7 + 3 });
+      for (const id of Array.isArray(pattern) ? pattern : [pattern]) {
+        sim.startPattern(id, { origin: () => bossOrigin(t, o), duration, intensity, seed: s * 7 + 3 });
+      }
       const p = { x: 0, y: 0, z: 0 };
       let hits = 0, inv = 0, first = -1;
       // Run past the emitter end so the last bullets arrive.

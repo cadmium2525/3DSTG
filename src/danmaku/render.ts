@@ -47,7 +47,7 @@ void main() {
   float rim = exp(-pow((d - 0.84) * 7.0, 2.0));       // thin bright rim
   float halo = exp(-d * d * 1.5) * (1.0 - d / uHalo);
   vec3 c = vCol * (body * 0.6 + rim * 0.5 + halo * (0.3 + 0.35 * vNear))
-         + vec3(1.0) * core * (0.25 + 0.85 * vNear * vNear);
+         + vec3(1.0) * core * (0.1 + 1.0 * vNear * vNear);
   gl_FragColor = vec4(c, vAlpha);
 }`;
 
