@@ -123,7 +123,7 @@ export function bossOrigin(t: number, out: Vec3Like): Vec3Like {
 /** Simulate `seeds` runs of a pattern (or several at once) with the bot and with a stationary player at (0,0). */
 export function runFairness(
   pattern: PatternId | PatternId[],
-  opts: { seeds?: number; duration?: number; intensity?: number; dt?: number; quality?: 0 | 1 | 2; botSpeed?: number } = {},
+  opts: { seeds?: number; duration?: number; intensity?: number; dt?: number; quality?: 0 | 1 | 2; botSpeed?: number; botHorizon?: number } = {},
 ): FairnessRow {
   const seeds = opts.seeds ?? 10;
   const duration = opts.duration ?? 15;
@@ -137,7 +137,7 @@ export function runFairness(
     for (let mode = 0; mode < 2; mode++) {
       const sim = new DanmakuSim();
       sim.quality = opts.quality ?? 2;
-      const bot = new DodgeBot(opts.botSpeed ?? 6);
+      const bot = new DodgeBot(opts.botSpeed ?? 6, opts.botHorizon ?? 1.1);
       let t = 0;
       const o = { x: 0, y: 0, z: 0 };
       for (const id of Array.isArray(pattern) ? pattern : [pattern]) {
