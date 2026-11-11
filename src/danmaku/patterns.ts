@@ -493,6 +493,102 @@ class AimedBurst extends Emitter {
   }
 }
 
+/* ------------------------------------------------- 胡蝶の羽ばたき wing sweep (mid-boss) */
+
+/**
+ * Cross-section: a mirrored pair of curved "wing edges" — vertical walls of bullets — that
+ * sweep across the field, alternately closing (edges -> centre) and opening (centre -> edges),
+ * like a butterfly's wingbeat. Every wall has one gap (gold edges) that drifts slowly along
+ * the wall during the sweep; each beat the player threads exactly one gap on their side.
+ * At higher intensity the beats are quicker and the wing edges ripple.
+ */
+class WingSweep extends Emitter {
+  private beat = 0;
+  private step = 0;
+  private readonly steps: number;
+  private gapL = 0;
+  private gapR = 0;
+  private driftL = 0;
+  private driftR = 0;
+  private bow = 0;
+  private ripple = 0;
+  private lattice = 0;
+
+  constructor(opts: PatternOptions) {
+    super(opts, 0.3);
+    this.steps = 11;
+    this.newBeat();
+  }
+
+  private newBeat(): void {
+    const rng = this.rng;
+    const H = FIELD.halfH * 0.62;
+    this.gapL = (rng() * 2 - 1) * H;
+    // Keep the two gaps apart vertically so the wings never look identical.
+    this.gapR = (rng() * 2 - 1) * H;
+    if (Math.abs(this.gapR - this.gapL) < 1.2) this.gapR = this.gapL + (this.gapL > 0 ? -1.8 : 1.8);
+    const dmax = lerp(0.9, 1.4, this.I);
+    this.driftL = (rng() * 2 - 1) * dmax;
+    this.driftR = (rng() * 2 - 1) * dmax;
+    // Keep the drifting gap inside the field.
+    const lim = FIELD.halfH - 0.9;
+    if (Math.abs(this.gapL + this.driftL) > lim) this.driftL = -this.driftL;
+    if (Math.abs(this.gapR + this.driftR) > lim) this.driftR = -this.driftR;
+    this.bow = (0.35 + rng() * 0.35) * (rng() < 0.5 ? -1 : 1);
+    this.ripple = rng() * TAU;
+    // Shift the bullet lattice along the wall every beat so no fixed slot stays open.
+    this.lattice = rng() - 0.5;
+  }
+
+  protected emit(_te: number, ctx: EmitCtx): number {
+    const sp = ctx.sp;
+    const I = this.I;
+    const closing = (this.beat & 1) === 0;
+    const u = this.step / (this.steps - 1);
+    const W0 = FIELD.halfW + 0.35;
+    const W = W0 * (closing ? 1 - u : u);
+    // Walls only thin out a little at low quality (they must stay walls).
+    const spacing = 0.52 / Math.sqrt(Math.sqrt(ctx.density));
+    const gapW = lerp(1.5, 1.3, I);
+    const amp = I >= 0.5 ? lerp(0.0, 0.5, (I - 0.5) * 2) + 0.15 : 0;
+    const k = W / W0; // the edge curve flattens into a straight line at the centre
+    const H = FIELD.halfH;
+    sp.cx = 0; sp.cy = 0; sp.ep = 1.1; sp.accel = 2.1; sp.om = 0;
+    const merged = W < 0.05;
+    for (let side = -1; side <= 1; side += 2) {
+      if (merged && side > 0) break;
+      const gy = side < 0 ? this.gapL + this.driftL * u : this.gapR + this.driftR * u;
+      const col = side < 0 ? COL.cyan : COL.purple;
+      const n = Math.floor((2 * CLIP_Y) / spacing);
+      const y0 = -((n - 1) * spacing) / 2 + this.lattice * spacing;
+      for (let j = 0; j < n; j++) {
+        const y = y0 + j * spacing;
+        const q = (y / H) * (y / H);
+        const x = side * (W + k * (this.bow * (q - 0.35) + amp * Math.sin(y * 1.6 + this.ripple)));
+        if (!inClip(x, y)) continue;
+        // The merged centre line (closing end / opening start) keeps the left wing's gap.
+        const edge = Math.abs(y - gy);
+        if (edge < gapW * 0.5) continue;
+        const isEdge = edge < gapW * 0.5 + spacing;
+        sp.T = this.flightT;
+        sp.r0 = 0.5 * Math.sqrt(x * x + y * y) + 1.4;
+        sp.size = isEdge ? 1.3 : 1.05;
+        if (isEdge) setColor(sp, COL.gold, 0.15);
+        else if (j === 0 || j === n - 1) setColor(sp, COL.pink);
+        else setColor(sp, col);
+        spawnAt(ctx, x, y);
+      }
+    }
+    const sweepT = lerp(1.65, 1.2, I);
+    this.step++;
+    if (this.step < this.steps) return sweepT / (this.steps - 1);
+    this.step = 0;
+    this.beat++;
+    this.newBeat();
+    return lerp(1.05, 0.6, I);
+  }
+}
+
 export function createEmitter(id: PatternId, opts: PatternOptions): Emitter {
   switch (id) {
     case 'spiralCorridor': return new SpiralCorridor(opts);
@@ -500,5 +596,6 @@ export function createEmitter(id: PatternId, opts: PatternOptions): Emitter {
     case 'rippleRing': return new RippleRing(opts);
     case 'constellationRain': return new ConstellationRain(opts);
     case 'aimedBurst': return new AimedBurst(opts);
+    case 'wingSweep': return new WingSweep(opts);
   }
 }

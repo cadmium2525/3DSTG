@@ -14,7 +14,8 @@ export type PatternId =
   | 'petalBloom' // 花弁の開花: radial petals that open/close
   | 'rippleRing' // 波紋リング: concentric rings with a gap
   | 'constellationRain' // 星座の雨: bullets laid along curves
-  | 'aimedBurst'; // simple aimed shots for small enemies
+  | 'aimedBurst' // simple aimed shots for small enemies
+  | 'wingSweep'; // 胡蝶の羽ばたき: mirrored wing-edge walls sweeping in/out, thread the drifting gap (mid-boss)
 
 export const PATTERN_NAMES: Record<PatternId, string> = {
   spiralCorridor: '螺旋回廊',
@@ -22,6 +23,7 @@ export const PATTERN_NAMES: Record<PatternId, string> = {
   rippleRing: '波紋リング',
   constellationRain: '星座の雨',
   aimedBurst: '狙い弾',
+  wingSweep: '胡蝶の羽ばたき',
 };
 
 export interface Vec3Like {
@@ -168,12 +170,13 @@ export type SfxName =
   | 'graze'
   | 'playerHit'
   | 'bossWarning'
+  | 'midbossDown'
   | 'bossDown'
   | 'uiTap'
   | 'clear'
   | 'gameOver';
 
-export type BgmTrack = 'title' | 'stage' | 'boss';
+export type BgmTrack = 'title' | 'stage' | 'midboss' | 'boss';
 
 export interface AudioEngine {
   /** Must be called from a user gesture; safe to call repeatedly. */

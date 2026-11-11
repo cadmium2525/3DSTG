@@ -105,6 +105,12 @@ export class Player {
     this.yawTarget = 0;
   }
 
+  /** Force the facing (title transformation drives the turn itself). */
+  setYaw(yaw: number): void {
+    this.yaw = yaw;
+    this.yawTarget = yaw;
+  }
+
   /**
    * @param mdx, mdy world-space movement requested this frame (already scaled)
    * @param keyX, keyY keyboard axes

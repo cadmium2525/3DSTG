@@ -1,0 +1,17 @@
+{
+  "bgm": {
+    "title": {
+      "file": "bgm/title.mp3?v=63da7225",
+      "bpm": 88,
+      "beatsPerBar": 4,
+      "bars": 16,
+      "loopStart": 0.25,
+      "loopEnd": 43.886364,
+      "duration": 44.1364,
+      "lufs": -16.9,
+      "truePeak": -3.59,
+      "bytes": 707231
+    }
+  },
+  "sfx": {}
+}

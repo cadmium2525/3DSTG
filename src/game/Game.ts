@@ -20,6 +20,7 @@ import { Effects } from './Effects';
 import { Enemies, MAX_ENEMIES } from './Enemies';
 import { Input } from './Input';
 import { Player } from './Player';
+import { TitleIntro } from './TitleIntro';
 import { Quality, type QualityLevel } from './Quality';
 import { Rng } from './Rng';
 import { Shots, Targets } from './Shots';
@@ -64,6 +65,8 @@ export class Game {
   private bg: Background;
   private effects: Effects;
   private player: Player;
+  private intro: TitleIntro;
+  private titleShown = false;
   private shots: Shots;
   private targets = new Targets();
   private enemies: Enemies;
@@ -141,6 +144,8 @@ export class Game {
     scene.add(this.effects.group);
     this.player = new Player();
     scene.add(this.player.group);
+    this.intro = new TitleIntro(this.player, this.effects);
+    scene.add(this.intro.group);
     this.shots = new Shots();
     scene.add(this.shots.mesh);
 
@@ -266,12 +271,15 @@ export class Game {
     this.player.alive = true;
     this.player.invincible = 0;
     this.ui.showTitle(this.save.hiScore);
+    this.intro.showTitle(!this.titleShown);
+    this.titleShown = true;
     this.audio.setPaused(false);
     this.audio.playBgm('title');
     this.needsRender = true;
   }
 
   start(): void {
+    const turning = this.state === 'title' && this.intro.beginTurn();
     this.clearWorld();
     this.effects.clear();
     this.rng.reseed(this.seed);
@@ -284,9 +292,10 @@ export class Game {
     this.grazeChain = 0;
     this.lastGrazeT = -10;
     this.player.reset();
-    this.player.position.set(0, -0.8, FIELD.planeZ);
+    this.player.position.set(0, turning ? 0 : -0.8, FIELD.planeZ);
     this.player.setPlayPose();
-    this.rig.mode = 'play';
+    // During the title turn-around the camera waits a moment before swooping.
+    this.rig.mode = turning ? 'title' : 'play';
     this.stage.reset();
     this.input.reset();
     this.quality.hold(2);
@@ -365,6 +374,7 @@ export class Game {
     this.clearWorld();
     this.state = 'result';
     this.rig.mode = 'title';
+    this.intro.hide();
     p.setTitlePose();
     p.alive = true;
     p.invincible = 0;
@@ -473,7 +483,7 @@ export class Game {
     this.time += dt;
     const settings = this.save.settings;
     const playing = this.state === 'playing';
-    const control = playing && (this.phase === 'stage' || this.phase === 'boss' || this.phase === 'clearing');
+    const control = playing && !this.intro.busy && (this.phase === 'stage' || this.phase === 'boss' || this.phase === 'clearing');
     const slow = settings.slowMode || this.input.slowHeld;
 
     // Input -> movement.
@@ -487,7 +497,7 @@ export class Game {
       p.position.y += (0 - p.position.y) * k;
       p.titleIdle(this.time);
     }
-    p.update(dt, this.drag.x * scale, -this.drag.y * scale, this.input.keyAxisX(), this.input.keyAxisY(), slow && playing, control, playing && this.playTime > 0.6);
+    p.update(dt, this.drag.x * scale, -this.drag.y * scale, this.input.keyAxisX(), this.input.keyAxisY(), slow && playing, control, playing && this.playTime > 0.6 && !this.intro.busy);
 
     if (playing) {
       this.playTime += dt;
@@ -496,7 +506,7 @@ export class Game {
       this.targets.begin();
       this.enemies.addTargets(this.targets);
       this.boss.addTargets(this.targets, BOSS_ID);
-      const firing = p.alive && (this.phase === 'stage' || this.phase === 'boss') && this.playTime > 0.8;
+      const firing = p.alive && (this.phase === 'stage' || this.phase === 'boss') && this.playTime > 0.8 && !this.intro.busy;
       const volleys = this.shots.update(dt, firing, p.position, this.targets, this.onShotHit);
       if (volleys > 0) this.sfx('shot', 0.11);
 
@@ -523,7 +533,10 @@ export class Game {
     this.bg.setSpeed(playing ? (this.playTime < 1.4 ? 2.8 : 1) : 0.45);
     this.bg.setFramesOpacity(this.rig.mode === 'play' ? 0.22 : 0);
     this.bg.update(dt);
+    if (playing && this.rig.mode === 'title' && this.intro.releaseCamera) this.rig.mode = 'play';
+    if (playing && this.intro.busy) p.position.y += (-0.8 - p.position.y) * (1 - Math.exp(-dt * 4));
     this.rig.update(dt, p.position, p.vx);
+    this.intro.update(dt, this.rig.camera);
 
     if (playing) {
       this.hudTimer += dt;

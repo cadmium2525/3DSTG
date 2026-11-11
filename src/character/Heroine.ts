@@ -126,6 +126,8 @@ class Spring2 {
  */
 export class Heroine {
   readonly group = new THREE.Group();
+  /** Extra white flash 0..1 driven from outside (e.g. the title transformation). */
+  flash = 0;
 
   private readonly rig = new THREE.Group();
   private readonly geometry: THREE.BufferGeometry;
@@ -228,6 +230,10 @@ export class Heroine {
     } else {
       this.rig.visible = true;
       this.uniforms.uFlash.value = 0;
+    }
+    if (this.flash > 0) {
+      this.rig.visible = true;
+      this.uniforms.uFlash.value = Math.max(this.uniforms.uFlash.value, Math.min(1, this.flash));
     }
   }
 

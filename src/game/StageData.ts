@@ -50,7 +50,8 @@ export interface IntroEvent {
 
 export interface MarkerEvent {
   t: number;
-  type: 'announce' | 'warning' | 'boss';
+  /** 'midboss': the stage timeline pauses until the mid-boss is defeated or escapes. */
+  type: 'announce' | 'warning' | 'midboss' | 'boss';
   text?: string;
   sub?: string;
 }
@@ -66,14 +67,66 @@ export const STAGE_EVENTS: StageEvent[] = [
   { t: 13.0, type: 'wave', formation: 'arc', kind: 'petal', count: 6, side: 0, stay: 4.0, fireEvery: 1.5, intensity: 0.36 },
   { t: 16.0, type: 'intro', pattern: 'constellationRain', duration: 5.0, intensity: 0.25, sub: '星の線を見切れ' },
   { t: 17.5, type: 'wave', formation: 'line', kind: 'crystal', count: 5, side: 1, stay: 3.5, fireEvery: 1.6, intensity: 0.36 },
-  { t: 21.0, type: 'wave', formation: 'v', kind: 'petal', count: 7, side: 0, stay: 3.5, fireEvery: 1.4, intensity: 0.4 },
-  { t: 23.5, type: 'wave', formation: 'columns', kind: 'crystal', count: 6, side: -1, stay: 3.0, fireEvery: 1.4, intensity: 0.42 },
-  { t: 27.5, type: 'warning' },
-  { t: 30.5, type: 'boss' },
+  // Mid-boss: stage time stops here until it is defeated or flies away (see MIDBOSS).
+  { t: 23.0, type: 'midboss' },
+  { t: 24.2, type: 'wave', formation: 'v', kind: 'petal', count: 7, side: 0, stay: 3.5, fireEvery: 1.4, intensity: 0.4 },
+  { t: 27.2, type: 'wave', formation: 'columns', kind: 'crystal', count: 6, side: -1, stay: 3.0, fireEvery: 1.4, intensity: 0.42 },
+  { t: 30.2, type: 'wave', formation: 'arc', kind: 'crystal', count: 7, side: 0, stay: 3.0, fireEvery: 1.3, intensity: 0.44 },
+  { t: 34.5, type: 'warning' },
+  { t: 37.5, type: 'boss' },
 ];
 
 /** Time to jump to when skipping to the boss (debug). */
-export const BOSS_SKIP_T = 27.5;
+export const BOSS_SKIP_T = 34.5;
+/** Time to jump to when skipping to the mid-boss (debug). */
+export const MIDBOSS_SKIP_T = 23.0;
+
+export interface MidBossPhaseDef {
+  patterns: { id: PatternId; intensity: number }[];
+  /** Phase ends when hp (0..1) falls to this value… */
+  hpEnd: number;
+  /** …or after this many seconds (last phase: timeout = the mid-boss escapes, no bonus). */
+  timeout: number;
+  /** Spell name shown in the HUD bar / banner. */
+  name: string;
+}
+
+export const MIDBOSS = {
+  name: '硝子蝶 ルクシア',
+  sub: 'MID BOSS — 夜をわたる硝子の翅',
+  maxHp: 300,
+  /** Fly-in (invulnerable for the first ~60%). */
+  enterSec: 2.4,
+  /** Pause between the two phases (bullets cleared). */
+  breatherSec: 1.1,
+  deathSec: 1.5,
+  position: { x: 0, y: 1.6, z: -54 },
+  /** Sway around `position` while fighting. */
+  swayX: 3.2,
+  swayY: 0.7,
+  swayZ: 3.5,
+  hitRadius: 4.6,
+  phases: [
+    {
+      name: '胡蝶の羽ばたき',
+      patterns: [
+        { id: 'wingSweep', intensity: 0.3 },
+        { id: 'aimedBurst', intensity: 0.28 },
+      ],
+      hpEnd: 0.5,
+      timeout: 8.5,
+    },
+    {
+      name: '胡蝶の羽ばたき・乱',
+      patterns: [
+        { id: 'wingSweep', intensity: 0.65 },
+        { id: 'aimedBurst', intensity: 0.5 },
+      ],
+      hpEnd: 0,
+      timeout: 9.5,
+    },
+  ] as MidBossPhaseDef[],
+};
 
 export interface BossPhaseDef {
   patterns: { id: PatternId; intensity: number }[];
@@ -115,6 +168,10 @@ export const SCORE = {
   bulletCancel: 10,
   phaseBreak: 5000,
   bossKill: 30000,
+  /** Mid-boss: per shot that hits, phase break, kill bonus (no bonus when it escapes). */
+  midBossHit: 10,
+  midBossPhaseBreak: 2000,
+  midBossKill: 10000,
   /** Clear bonus per remaining life, plus a no-miss bonus. */
   lifeBonus: 10000,
   noMissBonus: 20000,
