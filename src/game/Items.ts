@@ -138,6 +138,8 @@ export class Items {
   private rotV = new Float32Array(MAX_ITEMS);
   private tint = new Float32Array(MAX_ITEMS);
   private size = new Float32Array(MAX_ITEMS);
+  /** Brightness (cancel stars are dimmer: hundreds can appear at once). */
+  private bright = new Float32Array(MAX_ITEMS);
   private life = new Float32Array(MAX_ITEMS);
   private homeT = new Float32Array(MAX_ITEMS);
   private noAttract = new Float32Array(MAX_ITEMS);
@@ -232,6 +234,7 @@ export class Items {
     this.rot[i] = rng.next() * Math.PI * 2;
     this.rotV[i] = kind === ItemKind.Star ? (rng.next() < 0.5 ? -1 : 1) * (2.2 + rng.next() * 2.4) : 0.7;
     this.size[i] = kind === ItemKind.Star ? STAR_SIZE : ORB_SIZE;
+    this.bright[i] = 1;
     this.magnet[i] = this.magnetT > 0 ? 1 : 0;
   }
 
@@ -301,6 +304,7 @@ export class Items {
     }
     this.init(i, ItemKind.Star, x, y, z, v);
     this.size[i] = CANCEL_SIZE;
+    this.bright[i] = 0.6;
     this.ph[i] = Ph.Home;
     this.magnet[i] = 1;
     this.homeT[i] = -0.12 - this.rng.next() * 0.12; // hover a moment where the bullet was
@@ -416,7 +420,7 @@ export class Items {
       pos[o + 3] = this.size[i];
       par[o] = this.kind[i];
       par[o + 1] = this.rot[i];
-      par[o + 2] = alpha;
+      par[o + 2] = alpha * this.bright[i];
       par[o + 3] = this.tint[i];
       n++;
     }

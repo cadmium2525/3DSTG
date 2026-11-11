@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { BOMB } from './StageData';
 
 /** Dome radius (world units) and total visual length (s). */
-const DOME_R = 2.5;
+const DOME_R = 2.3;
 const DOME_IN = 0.32;
 const FADE_AT = 1.75;
 const TOTAL = 2.35;
@@ -63,8 +63,8 @@ void main() {
   vec3 cyan = vec3(0.42, 0.92, 1.0);
   vec3 gold = vec3(1.0, 0.8, 0.42);
   vec3 lat = mix(cyan, gold, smoothstep(0.25, 0.85, vUv.y));
-  vec3 col = lat * (line * (0.32 + sweep * 0.55) + cell) + mix(gold, vec3(1.0), 0.5) * fres * (0.5 + uFlash * 0.6);
-  col *= uFade * (gl_FrontFacing ? 1.0 : 0.3);
+  vec3 col = lat * (line * (0.32 + sweep * 0.55) + cell) + mix(gold, vec3(1.0), 0.5) * fres * (0.36 + uFlash * 0.3);
+  col *= uFade * (gl_FrontFacing ? 1.0 : 0.22);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -110,7 +110,7 @@ void main() {
   float r = length(vUv);
   if (r > 1.0) discard;
   float a = atan(vUv.y, vUv.x);
-  float ring = exp(-pow((r - 0.9) * 26.0, 2.0));
+  float ring = exp(-pow((r - 0.9) * 40.0, 2.0));
   float inner = exp(-pow((r - 0.8) * 50.0, 2.0)) * 0.5;
   float ticks = smoothstep(0.75, 1.0, cos(a * 24.0)) * smoothstep(0.62, 0.8, r) * (1.0 - smoothstep(0.86, 0.9, r)) * 0.6;
   float fill = smoothstep(0.9, 0.2, r) * 0.05;
@@ -299,7 +299,7 @@ export class Bomb {
       this.m.setPosition(this.origin.x, this.origin.y + e * 1.5, this.origin.z - WAVE_DIST * e);
       this.rings.setMatrixAt(n, this.m);
       // Fade in once the ring has left the camera's vicinity, fade out in the depths.
-      const f = Math.pow(1 - wu, 1.4) * Math.min(1, wu / 0.18) * (k === 0 ? 0.8 : 0.55);
+      const f = Math.pow(1 - wu, 1.4) * Math.min(1, wu / 0.22) * (k === 0 ? 0.5 : 0.32);
       if (k === 1) this.c.setRGB(1.0 * f, 0.82 * f, 0.45 * f);
       else this.c.setRGB(0.55 * f, 0.95 * f, 1.0 * f);
       this.rings.setColorAt(n, this.c);

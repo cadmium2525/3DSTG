@@ -544,8 +544,8 @@ export class Game {
     this.items.magnetAll(BOMB.invincibleSec);
     this.sfx('bomb');
     this.rig.shake(0.3, 2.2);
-    this.effects.burst(p.x, p.y, p.z, PALETTE.white, 36, 9, 0.3, 0.8);
-    this.effects.burst(p.x, p.y, p.z, PALETTE.gold, 24, 6, 0.26, 0.9);
+    this.effects.burst(p.x, p.y, p.z, PALETTE.white, 22, 9, 0.24, 0.7);
+    this.effects.burst(p.x, p.y, p.z, PALETTE.gold, 20, 6, 0.22, 0.9);
     this.effects.ring(p.x, p.y, p.z, PALETTE.cyan, 4.5, 0.5);
     if (deathbomb) this.effects.ring(p.x, p.y, p.z, PALETTE.pink, 3, 0.4);
     this.hudDirty = true;
