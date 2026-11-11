@@ -119,6 +119,11 @@ export interface HudData {
   hiScore: number;
   lives: number;
   graze: number;
+  /** Bombs (光の結界) in stock. */
+  bombs: number;
+  /** Shot power level 1..4 and progress toward the next level 0..1 (1 at max). */
+  power: number;
+  powerProgress: number;
   /** null when no boss is present. hp is 0..1. */
   boss: null | { name: string; hp: number; pattern?: string };
 }
@@ -142,6 +147,8 @@ export interface UiCallbacks {
   onPause(paused: boolean): void;
   /** Any setting changed (already written to SaveStore). */
   onSettingsChanged(): void;
+  /** Bomb button pressed (during play). */
+  onBomb(): void;
 }
 
 export interface GameUI {
@@ -174,7 +181,11 @@ export type SfxName =
   | 'bossDown'
   | 'uiTap'
   | 'clear'
-  | 'gameOver';
+  | 'gameOver'
+  | 'itemScore'
+  | 'itemPower'
+  | 'powerUp'
+  | 'bomb';
 
 export type BgmTrack = 'title' | 'stage' | 'midboss' | 'boss';
 
