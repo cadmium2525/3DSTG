@@ -276,7 +276,7 @@ export class Bomb {
     const u = this.domeMat.uniforms;
     u.uTime.value = this.time;
     u.uFade.value = Math.min(1, t / 0.08) * (1 - out) * (1 - out) * (0.85 + 0.15 * Math.sin(t * 9)) * 0.85;
-    u.uFlash.value = Math.max(0, 1 - t / 0.4) * 0.6;
+    u.uFlash.value = Math.max(0, 1 - t / 0.4) * 0.4;
 
     // Start flash: grows fast, gone after ~0.7 s.
     const fu = t / 0.7;
@@ -284,7 +284,7 @@ export class Bomb {
     if (fu < 1) {
       this.flash.position.set(player.x, player.y, player.z + 0.3);
       this.flash.scale.setScalar(1.5 + 4.5 * Math.sqrt(fu));
-      this.flashMat.uniforms.uAmt.value = (1 - fu) * (1 - fu) * 0.55;
+      this.flashMat.uniforms.uAmt.value = (1 - fu) * (1 - fu) * 0.32;
       this.flashMat.uniforms.uTime.value = this.time;
     }
 

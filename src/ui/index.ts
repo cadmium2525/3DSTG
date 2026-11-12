@@ -373,6 +373,11 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const fireBomb = () => {
     if (screen !== 'hud' || paused) return;
     bombAt = performance.now();
+    if (bombBtn.classList.contains('is-empty')) {
+      // No stock: shake so the tap is visibly acknowledged.
+      play(bombBtn, [{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }], { duration: 260, easing: 'ease-out' });
+      return;
+    }
     cb.onBomb();
     play(bombBtn, [{ transform: 'scale(0.86)' }, { transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
   };
