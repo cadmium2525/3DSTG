@@ -462,6 +462,7 @@ export class Game {
 
   private beginEnding(): void {
     this.phase = 'ending';
+    this.app.dataset.ending = '1';
     this.phaseT = 0;
     this.ui.hideStageClear();
     this.ending = createEnding({ ui: this.ui, audio: this.audio, bg: this.bg, player: this.player, rig: this.rig, intro: this.intro, effects: this.effects });
@@ -523,6 +524,7 @@ export class Game {
     this.ending = null;
     this.bannerT = -1;
     this.ui?.hideStageClear();
+    delete this.app.dataset.ending;
     this.hitPendingT = 0;
     delete this.app.dataset.hitPending;
     delete this.app.dataset.bombActive;

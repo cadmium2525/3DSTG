@@ -1462,3 +1462,12 @@
     animation: none;
   }
 }
+
+/* Ending: hide the play HUD and buttons so the scene and the closing lines stand alone. */
+#app[data-ending] .bd-hud-top,
+#app[data-ending] .bd-slow,
+#app[data-ending] .bd-bomb {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}

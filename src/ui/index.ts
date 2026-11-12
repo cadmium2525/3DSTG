@@ -385,6 +385,23 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   };
 
   // Bomb fires on press (not release) so a 決死ボム within a fraction of a second is possible.
+  let cardUntil = 0;
+  let annFree = 0;
+  const showBanner = (text: string, sub?: string) => {
+      annText.textContent = text;
+      annSub.textContent = sub ?? '';
+      annSub.style.display = sub ? '' : 'none';
+      play(
+        ann,
+        [
+          { opacity: 0, transform: 'translate(-50%, 0) scale(1.18)', filter: 'blur(6px)', offset: 0 },
+          { opacity: 1, transform: 'translate(-50%, 0) scale(1)', filter: 'blur(0px)', offset: 0.14 },
+          { opacity: 1, transform: 'translate(-50%, 0) scale(0.98)', filter: 'blur(0px)', offset: 0.8 },
+          { opacity: 0, transform: 'translate(-50%, -12px) scale(0.96)', filter: 'blur(4px)', offset: 1 },
+        ],
+        { duration: 1800, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'both' },
+      );
+  };
   let bombAt = -1e9;
   const fireBomb = () => {
     if (screen !== 'hud' || paused) return;
@@ -608,6 +625,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     },
 
     stageTitle(stage: number, titleText: string, subtitle: string) {
+      cardUntil = performance.now() + 2700;
       scNo.textContent = `STAGE ${stage}`;
       scTitle.textContent = titleText;
       scSub.textContent = subtitle;
@@ -666,19 +684,13 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     },
 
     announce(text: string, sub?: string) {
-      annText.textContent = text;
-      annSub.textContent = sub ?? '';
-      annSub.style.display = sub ? '' : 'none';
-      play(
-        ann,
-        [
-          { opacity: 0, transform: 'translate(-50%, 0) scale(1.18)', filter: 'blur(6px)', offset: 0 },
-          { opacity: 1, transform: 'translate(-50%, 0) scale(1)', filter: 'blur(0px)', offset: 0.14 },
-          { opacity: 1, transform: 'translate(-50%, 0) scale(0.98)', filter: 'blur(0px)', offset: 0.8 },
-          { opacity: 0, transform: 'translate(-50%, -12px) scale(0.96)', filter: 'blur(4px)', offset: 1 },
-        ],
-        { duration: 1800, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'both' },
-      );
+      // Never overlap the stage title card: wait until it has faded.
+      // Banners wait for the stage card and for each other (1.8 s slots).
+      const now = performance.now();
+      const at = Math.max(now, cardUntil, annFree);
+      annFree = at + 1800;
+      if (at > now + 1) window.setTimeout(() => showBanner(text, sub), at - now);
+      else showBanner(text, sub);
     },
 
     flashDamage() {
