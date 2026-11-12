@@ -7,6 +7,8 @@ export interface BgmFile {
   /** Loop region in seconds within the decoded file (playback starts at loopStart). */
   loopStart: number;
   loopEnd: number;
+  /** false = play once from loopStart and stop (e.g. the ending). Omitted = loop. */
+  loop?: boolean;
 }
 export interface SfxFile {
   file: string;
@@ -14,8 +16,15 @@ export interface SfxFile {
 }
 export const BGM_FILES = {
   boss: { file: 'bgm/boss.mp3?v=c57032ad', bpm: 170, beatsPerBar: 4, loopStart: 0.25, loopEnd: 56.720588 },
+  boss2: { file: 'bgm/boss2.mp3?v=f233ec3a', bpm: 165, beatsPerBar: 4, loopStart: 0.25, loopEnd: 58.431818 },
+  boss3: { file: 'bgm/boss3.mp3?v=40d54a3c', bpm: 170, beatsPerBar: 4, loopStart: 0.25, loopEnd: 79.308824 },
+  ending: { file: 'bgm/ending.mp3?v=715ac589', bpm: 78, beatsPerBar: 4, loopStart: 0, loopEnd: 56.623, loop: false },
   midboss: { file: 'bgm/midboss.mp3?v=92aebfcb', bpm: 160, beatsPerBar: 4, loopStart: 0.25, loopEnd: 36.25 },
+  midboss2: { file: 'bgm/midboss2.mp3?v=f7015d86', bpm: 155, beatsPerBar: 4, loopStart: 0.25, loopEnd: 37.41129 },
+  midboss3: { file: 'bgm/midboss3.mp3?v=a90da559', bpm: 160, beatsPerBar: 4, loopStart: 0.25, loopEnd: 36.25 },
   stage: { file: 'bgm/stage.mp3?v=db4578eb', bpm: 150, beatsPerBar: 4, loopStart: 0.25, loopEnd: 57.85 },
+  stage2: { file: 'bgm/stage2.mp3?v=2dd579b6', bpm: 145, beatsPerBar: 4, loopStart: 0.25, loopEnd: 59.836207 },
+  stage3: { file: 'bgm/stage3.mp3?v=f3c7a64b', bpm: 136, beatsPerBar: 4, loopStart: 0.25, loopEnd: 56.720588 },
   title: { file: 'bgm/title.mp3?v=b8ebc508', bpm: 88, beatsPerBar: 4, loopStart: 0.25, loopEnd: 43.886364 },
 } as const satisfies Record<string, BgmFile>;
 export const SFX_FILES = {

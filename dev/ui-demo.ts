@@ -138,7 +138,7 @@ const btn = (label: string, fn: () => void) => {
   dev.appendChild(b);
 };
 for (const k of Object.keys(actions)) btn(k, actions[k]);
-const tracks: BgmTrack[] = ['title', 'stage', 'midboss', 'boss'];
+const tracks: BgmTrack[] = ['title', 'stage', 'midboss', 'boss', 'stage2', 'midboss2', 'boss2', 'stage3', 'midboss3', 'boss3', 'ending'];
 for (const tr of tracks)
   btn(`♪${tr}`, () => {
     audio.unlock();

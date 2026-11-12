@@ -21,6 +21,10 @@
  * at the wrap point), then the loop is padded on both sides with PAD seconds of its
  * own periodic continuation. The game loops between loopStart/loopEnd, so a constant
  * decoder offset (MP3 encoder delay) cannot cause a gap or click.
+ *
+ * One-shot BGM (`"loop": false` in the song, e.g. the ending): rendered once with its full
+ * reverb tail, trailing silence trimmed, short fade at the very end, no padding. The manifest
+ * entry gets `loop: false`, loopStart 0 and loopEnd = duration; the game plays it once.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, unlinkSync, statSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
@@ -151,6 +155,10 @@ for (const id of bgmIds.filter(want)) {
   const t0 = Date.now();
   const out = renderSong(song, { sr: SR });
   const bpb = (song.sig?.[0] ?? 4) * 4 / (song.sig?.[1] ?? 4);
+  if (song.loop === false) {
+    renderOneShot(id, song, out, bpb, t0);
+    continue;
+  }
   const loopBeats = song.bars * bpb;
   const loopSec = loopBeats * 60 / song.bpm;
   const n = Math.round(loopSec * SR);
@@ -198,6 +206,45 @@ for (const id of bgmIds.filter(want)) {
   manifest.bgm[id] = entry;
   console.log(`♪ ${id.padEnd(8)} ${song.bpm} bpm ${song.bars} bars loop ${loopSec.toFixed(3)}s  ${entry.lufs} LUFS  TP ${entry.truePeak} dBTP  ` +
     `seam jump ${jump.toFixed(4)} (max step ${typ.toFixed(3)}) rms ${rmsBefore.toFixed(1)}/${rmsAfter.toFixed(1)} dB  mp3 wrap step ${wrapStep.toFixed(4)} (local max ${localStep.toFixed(4)})  ` +
+    `${(entry.bytes / 1024).toFixed(0)} KB  (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+  if (has('--report') || has('--sheet')) {
+    const a = analyzeAudio(L, R, SR, { bpm: song.bpm, beatsPerBar: bpb, targetLufs: song.master?.loudness ?? -14 });
+    if (has('--report')) console.log(reportText(a).split('\n').map((s) => '    ' + s).join('\n'));
+    if (has('--sheet')) sheet(L, R, a, song, id, join(SCRATCH, `${id}.png`));
+  }
+  if (has('--wav')) writeFileSync(join(SCRATCH, `${id}.wav`), encodeWav(L, R, SR, 16));
+}
+
+/** Play-once BGM: full render with tail, trailing silence trimmed, faded end, no loop padding. */
+function renderOneShot(id, song, out, bpb, t0) {
+  let n = out.L.length;
+  const floor = 10 ** (-60 / 20);
+  while (n > 1 && Math.abs(out.L[n - 1]) < floor && Math.abs(out.R[n - 1]) < floor) n--;
+  n = Math.min(out.L.length, n + Math.round(0.05 * SR));
+  const L = out.L.slice(0, n), R = out.R.slice(0, n);
+  const ceiling = 10 ** ((song.master?.ceiling ?? -1) / 20);
+  const tp = truePeak(L, R);
+  if (tp > ceiling) { const g = ceiling / tp * 0.995; for (let i = 0; i < n; i++) { L[i] *= g; R[i] *= g; } }
+  const fade = Math.min(n, Math.round(1.0 * SR));
+  for (let i = 0; i < fade; i++) { const g = (i / fade) ** 2; L[n - 1 - i] *= g; R[n - 1 - i] *= g; }
+  const file = join(OUT, 'bgm', `${id}.mp3`);
+  encodeMp3(L, R, file, BGM_KBPS, false);
+  const lu = loudness(L, R, SR);
+  const entry = {
+    file: `bgm/${id}.mp3?v=${hash(file)}`,
+    bpm: song.bpm,
+    beatsPerBar: bpb,
+    bars: song.bars,
+    loop: false,
+    loopStart: 0,
+    loopEnd: fixed(n / SR, 6),
+    duration: fixed(n / SR, 4),
+    lufs: fixed(lu, 1),
+    truePeak: fixed(db(truePeak(L, R)), 2),
+    bytes: statSync(file).size,
+  };
+  manifest.bgm[id] = entry;
+  console.log(`♪ ${id.padEnd(8)} ${song.bpm} bpm ${song.bars} bars one-shot ${(n / SR).toFixed(3)}s  ${entry.lufs} LUFS  TP ${entry.truePeak} dBTP  ` +
     `${(entry.bytes / 1024).toFixed(0)} KB  (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
   if (has('--report') || has('--sheet')) {
     const a = analyzeAudio(L, R, SR, { bpm: song.bpm, beatsPerBar: bpb, targetLufs: song.master?.loudness ?? -14 });
@@ -282,13 +329,15 @@ export interface BgmFile {
   /** Loop region in seconds within the decoded file (playback starts at loopStart). */
   loopStart: number;
   loopEnd: number;
+  /** false = play once from loopStart and stop (e.g. the ending). Omitted = loop. */
+  loop?: boolean;
 }
 export interface SfxFile {
   file: string;
   duration: number;
 }
 export const BGM_FILES = {
-${Object.entries(manifest.bgm).map(([k, e]) => `  ${k}: { file: '${e.file}', bpm: ${e.bpm}, beatsPerBar: ${e.beatsPerBar}, loopStart: ${e.loopStart}, loopEnd: ${e.loopEnd} },`).join('\n')}
+${Object.entries(manifest.bgm).map(([k, e]) => `  ${k}: { file: '${e.file}', bpm: ${e.bpm}, beatsPerBar: ${e.beatsPerBar}, loopStart: ${e.loopStart}, loopEnd: ${e.loopEnd}${e.loop === false ? ', loop: false' : ''} },`).join('\n')}
 } as const satisfies Record<string, BgmFile>;
 export const SFX_FILES = {
 ${Object.entries(manifest.sfx).map(([k, e]) => `  ${k}: { file: '${e.file}', duration: ${e.duration} },`).join('\n')}

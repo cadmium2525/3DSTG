@@ -37,7 +37,7 @@ const inSec = (...s) => bars.filter((b) => s.includes(b.sec));
 
 /* ---- melodies ---- */
 const verse = seq(`
-  E5/1.5 F#5/.5 G5/1 B5/1 | A5/1.5 G5/.5 E5/2 | D5/1.5 E5/.5 G5/1 D6/1 | A5/3 -/1
+  E5/1.5 F#5/.5 G5/1 B5/1 | G5/1.5 E5/.5 C5/2 | D5/1.5 E5/.5 G5/1 D6/1 | A5/3 -/1
   E5/1.5 F#5/.5 G5/1 B5/1 | C6/1.5 B5/.5 G5/1 E5/1 | A5/1 G5/.5 F#5/.5 E5/1 C5/1 | D#5/2 F#5/1 B4/1
 `, { at: start('verse'), vel: 0.7, gate: 0.92 });
 const pre = seq(`C5/1 E5/1 A5/2 | D5/1 F#5/1 B5/2 | E5/1 G5/1 C6/1 B5/1 | A5/1 B5/1 C6/1 D6/1`, { at: start('pre'), vel: 0.72, gate: 0.9 });
@@ -67,6 +67,8 @@ const bass = bars.flatMap((b) => {
   if (b.sec === 'bridge') return [N(b.t, r, 1.4, 0.8), N(b.t + 1.5, r, 1, 0.6), N(b.t + 3, shift(r, 12), 0.9, 0.6)];
   return [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5].map((x, k) => N(b.t + x, k === 3 || k === 6 ? shift(r, 12) : r, 0.42, k % 2 ? 0.62 : 0.82));
 });
+
+const subs = bars.filter((b) => b.sec !== 'intro' && b.sec !== 'bridge').flatMap((b) => [0, 2].map((k) => N(b.t + k, V[b.c][1].endsWith('1') ? V[b.c][1] : shift(V[b.c][1], -12), 1.6, 0.7)));
 
 /* ---- drums ---- */
 const drumClips = bars.map((b, i) => {
@@ -108,6 +110,7 @@ export default () => ({
   tracks: [
     { id: 'drums', name: 'Drums', kit: 'rock', trim: 0, sends: { reverb: 0.08 }, humanize: { time: 0.004, vel: 0.05 }, clips: drumClips },
     { id: 'bass', name: 'Finger bass', inst: 'ebass', trim: -0.5, fx: [{ type: 'dist', drive: 3, kind: 'tape', mix: 0.3 }, { type: 'eq', bands: [{ type: 'peak', freq: 900, gain: 2, q: 1 }] }], clips: [{ at: 0, notes: bass }] },
+    { id: 'sub', name: 'Sub', inst: 'subbass', trim: -7, fx: [{ type: 'eq', bands: [{ type: 'lp', freq: 300 }] }], clips: [{ at: 0, notes: subs }] },
     { id: 'pad', name: 'String machine', inst: 'stringmachine', trim: -1.5, sends: { reverb: 0.35 }, fx: [{ type: 'widen', amount: 0.45, lowmono: 250 }], clips: [{ at: 0, notes: pad }] },
     { id: 'strings', name: 'Strings', inst: 'strings', trim: -2, pan: 0.1, sends: { reverb: 0.4 }, clips: [{ at: 0, notes: strings }] },
     { id: 'koto', name: 'Koto arp', inst: 'koto', trim: -1, pan: -0.25, sends: { reverb: 0.25, delay: 0.22 }, humanize: { time: 0.004, vel: 0.05 }, clips: [{ at: 0, notes: [...koto, ...bridgeKoto] }] },

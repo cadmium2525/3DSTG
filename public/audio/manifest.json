@@ -12,6 +12,43 @@
       "truePeak": -1.79,
       "bytes": 912448
     },
+    "boss2": {
+      "file": "bgm/boss2.mp3?v=f233ec3a",
+      "bpm": 165,
+      "beatsPerBar": 4,
+      "bars": 40,
+      "loopStart": 0.25,
+      "loopEnd": 58.431818,
+      "duration": 58.6818,
+      "lufs": -16,
+      "truePeak": -1.77,
+      "bytes": 940034
+    },
+    "boss3": {
+      "file": "bgm/boss3.mp3?v=40d54a3c",
+      "bpm": 170,
+      "beatsPerBar": 4,
+      "bars": 56,
+      "loopStart": 0.25,
+      "loopEnd": 79.308824,
+      "duration": 79.5588,
+      "lufs": -16,
+      "truePeak": -1.96,
+      "bytes": 1273983
+    },
+    "ending": {
+      "file": "bgm/ending.mp3?v=715ac589",
+      "bpm": 78,
+      "beatsPerBar": 4,
+      "bars": 17,
+      "loop": false,
+      "loopStart": 0,
+      "loopEnd": 56.623,
+      "duration": 56.623,
+      "lufs": -16,
+      "truePeak": -3.7,
+      "bytes": 907015
+    },
     "midboss": {
       "file": "bgm/midboss.mp3?v=92aebfcb",
       "bpm": 160,
@@ -22,6 +59,30 @@
       "duration": 36.5,
       "lufs": -16,
       "truePeak": -1.64,
+      "bytes": 585186
+    },
+    "midboss2": {
+      "file": "bgm/midboss2.mp3?v=f7015d86",
+      "bpm": 155,
+      "beatsPerBar": 4,
+      "bars": 24,
+      "loopStart": 0.25,
+      "loopEnd": 37.41129,
+      "duration": 37.6613,
+      "lufs": -16,
+      "truePeak": -1.82,
+      "bytes": 603577
+    },
+    "midboss3": {
+      "file": "bgm/midboss3.mp3?v=a90da559",
+      "bpm": 160,
+      "beatsPerBar": 4,
+      "bars": 24,
+      "loopStart": 0.25,
+      "loopEnd": 36.25,
+      "duration": 36.5,
+      "lufs": -16.2,
+      "truePeak": -1.54,
       "bytes": 585186
     },
     "stage": {
@@ -35,6 +96,30 @@
       "lufs": -16,
       "truePeak": -1.62,
       "bytes": 930839
+    },
+    "stage2": {
+      "file": "bgm/stage2.mp3?v=2dd579b6",
+      "bpm": 145,
+      "beatsPerBar": 4,
+      "bars": 36,
+      "loopStart": 0.25,
+      "loopEnd": 59.836207,
+      "duration": 60.0862,
+      "lufs": -16,
+      "truePeak": -1.58,
+      "bytes": 962604
+    },
+    "stage3": {
+      "file": "bgm/stage3.mp3?v=f3c7a64b",
+      "bpm": 136,
+      "beatsPerBar": 4,
+      "bars": 32,
+      "loopStart": 0.25,
+      "loopEnd": 56.720588,
+      "duration": 56.9706,
+      "lufs": -16,
+      "truePeak": -1.74,
+      "bytes": 912448
     },
     "title": {
       "file": "bgm/title.mp3?v=b8ebc508",
