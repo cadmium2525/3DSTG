@@ -191,6 +191,7 @@ uniform float uLen;
 uniform float uNear;
 uniform float uWobble;
 uniform float uFar;
+uniform float uGrow;
 varying vec2 vUv;
 varying float vSeed;
 varying float vFade;
@@ -202,7 +203,7 @@ void main() {
   c.y += sin(uTime * 0.45 + s * 17.0) * uWobble * 0.7;
   vFade = smoothstep(uNear - uLen, uNear - uLen + uFar, c.z) * (1.0 - smoothstep(uNear - 26.0, uNear, c.z));
   vec4 mv = modelViewMatrix * vec4(c, 1.0);
-  mv.xy += position.xy * aSize;
+  mv.xy += position.xy * aSize * uGrow;
   vUv = uv;
   vSeed = s;
   gl_Position = projectionMatrix * mv;
@@ -282,7 +283,7 @@ function cloudLayer(rng: Rng): BackgroundLayer {
   const mat = new THREE.ShaderMaterial({
     vertexShader: BILL_VERT, fragmentShader: CLOUD_FRAG,
     uniforms: {
-      uTime: { value: 0 }, uSpeed: { value: 9 }, uLen: { value: LEN }, uNear: { value: NEAR }, uWobble: { value: 0.6 }, uFar: { value: 130 },
+      uTime: { value: 0 }, uSpeed: { value: 9 }, uLen: { value: LEN }, uNear: { value: NEAR }, uWobble: { value: 0.6 }, uFar: { value: 130 }, uGrow: { value: 1 },
       uOpacity: { value: 0 },
     },
     transparent: true, depthWrite: false,
@@ -318,7 +319,7 @@ function moteLayer(rng: Rng): BackgroundLayer {
   const mat = new THREE.ShaderMaterial({
     vertexShader: BILL_VERT, fragmentShader: MOTE_FRAG,
     uniforms: {
-      uTime: { value: 0 }, uSpeed: { value: 11 }, uLen: { value: LEN }, uNear: { value: NEAR }, uWobble: { value: 1.3 }, uFar: { value: 40 },
+      uTime: { value: 0 }, uSpeed: { value: 11 }, uLen: { value: LEN }, uNear: { value: NEAR }, uWobble: { value: 1.3 }, uFar: { value: 40 }, uGrow: { value: 1 },
       uOpacity: { value: 0 }, uTide: { value: 0 },
     },
     transparent: true, depthWrite: false,
@@ -338,6 +339,7 @@ function moteLayer(rng: Rng): BackgroundLayer {
       mat.uniforms.uTide.value = tide;
       mat.uniforms.uTime.value = time;
       mat.uniforms.uSpeed.value = 11 + tide * 9;
+      mat.uniforms.uGrow.value = 1 + tide * 0.9;
     },
     setOpacity(o) {
       mat.uniforms.uOpacity.value = o;

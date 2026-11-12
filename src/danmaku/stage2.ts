@@ -506,10 +506,11 @@ class TwilightLattice extends Emitter {
 /* ------------------------------------------------- 蝕の三日月 eclipse crescents (boss) */
 
 /**
- * Cross-section: filled crescents = disc(C1, R) minus disc(C2, R), C2 offset toward the field
- * centre. C1 orbits the centre, so each crescent covers the outer part of the field on one side
- * and sweeps on around; its thickness waxes and wanes sheet by sheet. Gold outer rim, rose inner
- * rim, shadow interior. Stay in the hollow (toward the centre / the opposite side).
+ * Cross-section: filled crescents = disc(C1, R) minus disc(C2, R). C1 orbits off-centre and the
+ * bite C2 is taken from its outer side (swinging ±0.55 rad), so the body lies across the middle
+ * and the far side and the hollow opens outward; each sheet turns on around the field, its
+ * thickness waxing and waning. Gold outer rim, rose inner rim, shadow interior. Step into the
+ * hollow or out past the rim.
  */
 class CrescentSweep extends Emitter {
   private k = 0;

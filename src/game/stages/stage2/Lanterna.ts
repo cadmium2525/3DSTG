@@ -199,7 +199,7 @@ export class Lanterna extends PhasedBoss<LanternaConfig> {
     const frameGeo = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))!;
     frameGeo.computeVertexNormals();
     this.frameMat = new THREE.MeshStandardMaterial({
-      color: 0x5a3a2a, emissive: 0xff7a3a, emissiveIntensity: 0.18, metalness: 0.6, roughness: 0.4, flatShading: true, fog: false,
+      color: 0x3a2420, emissive: 0xff7a3a, emissiveIntensity: 0.12, metalness: 0.6, roughness: 0.4, flatShading: true, fog: false,
     });
     const frame = new THREE.Mesh(frameGeo, this.frameMat);
     this.body.add(frame);
@@ -388,7 +388,7 @@ export class Lanterna extends PhasedBoss<LanternaConfig> {
       const stut = ph >= 1 ? 0.75 + 0.25 * Math.sign(Math.sin(L * 7.3) + 0.6) : 1;
       F.uPower.value = (1.05 + fl * 0.4) * stut;
     }
-    this.frameMat.emissiveIntensity = 0.16 + fl * 0.5;
+    this.frameMat.emissiveIntensity = 0.1 + fl * 0.5;
     this.tendrilMat.emissiveIntensity = 0.18 + 0.12 * Math.sin(L * 2.3);
     this.glowMat.uniforms.uIntensity.value = (0.36 + fl * 0.25 + Math.sin(L * 9) * 0.03) * (1 - this.shadow * 0.4);
 

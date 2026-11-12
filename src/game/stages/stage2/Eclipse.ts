@@ -49,7 +49,7 @@ void main() {
   float r = length(p);
   float a = atan(p.y, p.x);
   float disc = smoothstep(1.0, 0.97, r);
-  vec3 sunC = mix(S(vec3(1.0, 0.92, 0.7)), S(vec3(1.0, 0.5, 0.18)), smoothstep(0.0, 1.0, r * r));
+  vec3 sunC = mix(S(vec3(1.0, 0.72, 0.42)), S(vec3(0.95, 0.38, 0.16)), smoothstep(0.0, 1.0, r * r));
   // Granulation shimmer.
   float gran = 0.9 + 0.1 * sin(p.x * 13.0 + uTime * 1.3) * sin(p.y * 11.0 - uTime * 1.1);
   float md = length(p - uMoon);
@@ -62,11 +62,12 @@ void main() {
   float corona = (exp(-out1 * 4.5) * 0.9 + rays * fall * (0.25 + 0.75 * uCover)) * (1.0 - disc);
   float halo = exp(-out1 * 1.2) * (1.0 - disc) * 0.18;
   float lit = disc * moon;
-  vec3 col = sunC * lit * gran * mix(0.75, 0.5, uCover)
-           + S(vec3(1.0, 0.72, 0.4)) * corona * (0.45 + 0.35 * uCover)
-           + S(vec3(1.0, 0.4, 0.3)) * halo
+  float edge = 1.0 - smoothstep(2.2, 3.15, r);   // nothing at the quad border
+  vec3 col = sunC * lit * gran * mix(0.42, 0.3, uCover)
+           + S(vec3(1.0, 0.66, 0.36)) * corona * (0.3 + 0.3 * uCover) * edge
+           + S(vec3(1.0, 0.4, 0.3)) * halo * edge
            + S(vec3(1.0, 0.95, 0.85)) * beads * 1.2;
-  col *= (1.0 + uFlash * 0.7 + uFlare * 1.6) * uFade;
+  col *= (1.0 + uFlash * 0.5 + uFlare * 1.6) * uFade;
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -133,7 +134,7 @@ export class Eclipse extends PhasedBoss {
 
     this.glowMat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: GLOW_FRAG,
-      uniforms: { uColor: { value: new THREE.Color(0xff7a40) }, uIntensity: { value: 0.3 } },
+      uniforms: { uColor: { value: new THREE.Color(0xff6a40) }, uIntensity: { value: 0.2 } },
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), this.glowMat);
@@ -354,7 +355,7 @@ export class Eclipse extends PhasedBoss {
     U.uSpin.value = this.spin;
     (U.uMoon.value as THREE.Vector2).set(MOON_DIR.x * mo, MOON_DIR.y * mo);
     this.moonMat.uniforms.uTime.value = L;
-    this.glowMat.uniforms.uIntensity.value = (0.3 + fl * 0.2 + this.flare * 0.5) * (1 - this.cover * 0.45) + 0.05 * Math.sin(L * 1.7);
+    this.glowMat.uniforms.uIntensity.value = (0.18 + fl * 0.12 + this.flare * 0.5) * (1 - this.cover * 0.45) + 0.05 * Math.sin(L * 1.7);
     this.flareMat.emissiveIntensity = 0.7 + fl * 0.8 + this.flare;
 
     // Orbiting flares: an inclined ring that tightens as the light is eaten.

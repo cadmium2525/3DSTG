@@ -30,10 +30,10 @@ export const STAGE2_EVENTS: StageEvent[] = [
   { t: 22.4, type: 'intro', pattern: 'twilightLattice', duration: 5.0, intensity: 0.3, sub: '光と影の格子 — 辺の中点が安全', kind: 'duskLantern' },
   { t: 24.6, type: 'wave', formation: 'circle', kind: 'sunShard', count: 6, side: 0, stay: 1, fireEvery: 9, intensity: 0.42, delayStep: 0.22, x: 0.25, y: 0.6 },
   { t: 25.6, type: 'wave', formation: 'scatter', kind: 'wisp', count: 3, side: -1, stay: 4.0, fireEvery: 1.6, intensity: 0.44, delayStep: 0.3 },
-  { t: 28.6, type: 'wave', formation: 'flock', kind: 'moth', count: 6, side: 1, stay: 3.4, fireEvery: 1.5, intensity: 0.44 },
+  { t: 27.8, type: 'wave', formation: 'flock', kind: 'moth', count: 6, side: 1, stay: 2.8, fireEvery: 1.5, intensity: 0.44 },
   // --- lull: a tide of shadow motes rises; a few moths drift down without firing ---
   { t: 31.4, type: 'scenery', name: 'shadowtide', duration: 5.5 },
-  { t: 31.8, type: 'wave', formation: 'low', kind: 'moth', count: 4, side: 0, stay: 3.6, fireEvery: 99, intensity: 0.3, quiet: true, delayStep: 0.45, y: 4 },
+  { t: 31.8, type: 'wave', formation: 'low', kind: 'moth', count: 4, side: 0, stay: 3.6, fireEvery: 99, intensity: 0.3, quiet: true, delayStep: 0.45, y: 1.5 },
   // Mid-boss: stage time stops here until it is defeated or leaves.
   { t: 37.0, type: 'midboss' },
   // --- second half: denser mixes ---
@@ -59,7 +59,7 @@ export const STAGE2_MIDBOSS: LanternaConfig = {
   name: '黄昏の灯守 ランテルナ',
   sub: 'MID BOSS — 影に蝕まれる灯籠の精',
   escapeText: 'ランテルナは夕闇の雲海へ沈んだ',
-  maxHp: 560,
+  maxHp: 520,
   enterSec: 2.4,
   breatherSec: 1.2,
   deathSec: 1.8,
