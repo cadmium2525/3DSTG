@@ -18,15 +18,17 @@ import './enemies';
 
 export const STAGE2_EVENTS: StageEvent[] = [
   // --- opening: moths flutter in from both sides, then the first sunset shards ---
-  { t: 2.0, type: 'wave', formation: 'flock', kind: 'moth', count: 5, side: -1, stay: 4.0, fireEvery: 1.7, intensity: 0.36 },
+  { t: 2.0, type: 'wave', formation: 'flock', kind: 'moth', count: 5, side: -1, stay: 4.0, fireEvery: 1.7, intensity: 0.36, hard: { count: 6 } },
   { t: 4.4, type: 'wave', formation: 'flock', kind: 'moth', count: 5, side: 1, stay: 3.8, fireEvery: 1.7, intensity: 0.38 },
   { t: 7.2, type: 'wave', formation: 'circle', kind: 'sunShard', count: 6, side: 0, stay: 1, fireEvery: 9, intensity: 0.4, delayStep: 0.2 },
   { t: 9.4, type: 'intro', pattern: 'coronaRays', duration: 4.6, intensity: 0.28, sub: '光条の隙間を回り込め', kind: 'duskLantern' },
   { t: 10.8, type: 'wave', formation: 'scatter', kind: 'wisp', count: 3, side: 1, stay: 4.5, fireEvery: 1.7, intensity: 0.4, delayStep: 0.35 },
+  // HARD: a pair of wisps from the other side while the corona preview fades.
+  { t: 13.0, type: 'wave', formation: 'scatter', kind: 'wisp', count: 2, side: -1, stay: 4.0, fireEvery: 1.7, intensity: 0.4, delayStep: 0.4, hardOnly: true },
   { t: 14.4, type: 'wave', formation: 'line', kind: 'moth', count: 6, side: -1, stay: 3.6, fireEvery: 1.6, intensity: 0.4 },
   { t: 16.2, type: 'wave', formation: 'circle', kind: 'sunShard', count: 8, side: 0, stay: 1, fireEvery: 9, intensity: 0.42, delayStep: 0.15, x: 0.4 },
   { t: 18.0, type: 'wave', formation: 'sides', kind: 'wisp', count: 2, side: 0, stay: 5.0, fireEvery: 1.6, intensity: 0.42, y: 2.4 },
-  { t: 18.6, type: 'wave', formation: 'v', kind: 'moth', count: 7, side: 0, stay: 3.6, fireEvery: 1.6, intensity: 0.42 },
+  { t: 18.6, type: 'wave', formation: 'v', kind: 'moth', count: 7, side: 0, stay: 3.6, fireEvery: 1.6, intensity: 0.42, hard: { count: 9 } },
   { t: 22.4, type: 'intro', pattern: 'twilightLattice', duration: 5.0, intensity: 0.3, sub: '光と影の格子 — 辺の中点が安全', kind: 'duskLantern' },
   { t: 24.6, type: 'wave', formation: 'circle', kind: 'sunShard', count: 6, side: 0, stay: 1, fireEvery: 9, intensity: 0.42, delayStep: 0.22, x: 0.25, y: 0.6 },
   { t: 25.6, type: 'wave', formation: 'scatter', kind: 'wisp', count: 3, side: -1, stay: 4.0, fireEvery: 1.6, intensity: 0.44, delayStep: 0.3 },
@@ -37,20 +39,20 @@ export const STAGE2_EVENTS: StageEvent[] = [
   // Mid-boss: stage time stops here until it is defeated or leaves.
   { t: 37.0, type: 'midboss' },
   // --- second half: denser mixes ---
-  { t: 38.2, type: 'wave', formation: 'v', kind: 'moth', count: 7, side: 0, stay: 3.4, fireEvery: 1.4, intensity: 0.46 },
+  { t: 38.2, type: 'wave', formation: 'v', kind: 'moth', count: 7, side: 0, stay: 3.4, fireEvery: 1.4, intensity: 0.46, hard: { count: 8 } },
   { t: 39.8, type: 'wave', formation: 'circle', kind: 'sunShard', count: 8, side: 0, stay: 1, fireEvery: 9, intensity: 0.46, delayStep: 0.14 },
   { t: 41.6, type: 'wave', formation: 'sides', kind: 'wisp', count: 4, side: 0, stay: 4.6, fireEvery: 1.6, intensity: 0.44, y: 3.2, delayStep: 0.3 },
   { t: 44.4, type: 'wave', formation: 'columns', kind: 'moth', count: 6, side: -1, stay: 3.2, fireEvery: 1.4, intensity: 0.46 },
   { t: 46.4, type: 'wave', formation: 'circle', kind: 'sunShard', count: 6, side: 0, stay: 1, fireEvery: 9, intensity: 0.48, delayStep: 0.2, x: 0.5 },
   { t: 47.0, type: 'wave', formation: 'scatter', kind: 'wisp', count: 3, side: 1, stay: 3.8, fireEvery: 1.5, intensity: 0.46, delayStep: 0.3 },
   { t: 49.4, type: 'intro', pattern: 'crescentSweep', duration: 4.6, intensity: 0.3, sub: '三日月の内側へ逃げ込め', kind: 'duskLantern' },
-  { t: 51.6, type: 'wave', formation: 'flock', kind: 'moth', count: 7, side: -1, stay: 3.4, fireEvery: 1.4, intensity: 0.48 },
+  { t: 51.6, type: 'wave', formation: 'flock', kind: 'moth', count: 7, side: -1, stay: 3.4, fireEvery: 1.4, intensity: 0.48, hard: { count: 8 } },
   { t: 53.4, type: 'wave', formation: 'scatter', kind: 'wisp', count: 4, side: 0, stay: 3.6, fireEvery: 1.5, intensity: 0.46, delayStep: 0.3 },
   // --- the push before WARNING: moths from both sides, wisps at the edges, a big ring of shards ---
   { t: 56.0, type: 'wave', formation: 'line', kind: 'moth', count: 6, side: -1, stay: 3.2, fireEvery: 1.4, intensity: 0.46 },
   { t: 56.7, type: 'wave', formation: 'line', kind: 'moth', count: 6, side: 1, stay: 2.9, fireEvery: 1.4, intensity: 0.46 },
   { t: 57.4, type: 'wave', formation: 'sides', kind: 'wisp', count: 2, side: 0, stay: 3.4, fireEvery: 1.5, intensity: 0.44, y: 1.2 },
-  { t: 59.6, type: 'wave', formation: 'circle', kind: 'sunShard', count: 10, side: 0, stay: 1, fireEvery: 9, intensity: 0.5, delayStep: 0.12 },
+  { t: 59.6, type: 'wave', formation: 'circle', kind: 'sunShard', count: 10, side: 0, stay: 1, fireEvery: 9, intensity: 0.5, delayStep: 0.12, hard: { count: 12 } },
   { t: 63.0, type: 'warning' },
   { t: 66.0, type: 'boss' },
 ];
@@ -86,6 +88,8 @@ export const STAGE2_MIDBOSS: LanternaConfig = {
         { id: 'flickerCurtain', intensity: 0.5 },
         { id: 'lanternDrift', intensity: 0.3 },
       ],
+      // HARD: aimed shots through the curtains.
+      hard: { patterns: [{ id: 'aimedBurst', intensity: 0.3 }] },
       hpEnd: 0,
       timeout: 12,
     },
@@ -106,7 +110,8 @@ export const STAGE2_BOSS: BossConfig = {
   targetZ: 1.5,
   cancelOnTimeout: true,
   phases: [
-    { name: '日輪の光条', patterns: [{ id: 'coronaRays', intensity: 0.5 }], hpEnd: 0.75, timeout: 15 },
+    // HARD: aimed volleys between the spokes.
+    { name: '日輪の光条', patterns: [{ id: 'coronaRays', intensity: 0.5 }], hard: { patterns: [{ id: 'aimedBurst', intensity: 0.3 }] }, hpEnd: 0.75, timeout: 15 },
     {
       name: '黄昏の格子',
       patterns: [
@@ -122,6 +127,8 @@ export const STAGE2_BOSS: BossConfig = {
         { id: 'crescentSweep', intensity: 0.5 },
         { id: 'coronaRays', intensity: 0.22 },
       ],
+      // HARD: sunset-shard rings burst from the sun as the crescents orbit.
+      hard: { patterns: [{ id: 'shardRing', intensity: 0.3 }] },
       hpEnd: 0.25,
       timeout: 17,
     },

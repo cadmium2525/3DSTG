@@ -41,8 +41,10 @@ src/game/
   ボーナス = 1万×面番号 + 残機×1万 + ノーミス2万）→ **移動**（transition 3.6 秒：背景が次の面へモーフ、加速、
   「STAGE 2 黄昏の境界」）→ 2面 → … → 3面の集計 → **ending**（`EndingSequence`、今は仮バナー）→ 総合リザルト
   （ALL CLEAR・面ごとの内訳・NEW RECORD）。途中でゲームオーバーなら従来どおりリザルト（到達面までの内訳）。
-- 残機・ボム・パワーは持ち越し。もう一度＝1面から。ハイスコアは通算1本。
-- 難易度フック：`Difficulty { bullet, enemyHp, bossHp }`（normal = 1）。全パターン強度・雑魚 HP・ボス HP に掛かる。`game.setDifficulty(d)`。
+- 残機・ボム・パワーは持ち越し。もう一度＝1面から（同じモードで）。ハイスコアはモード（NORMAL / HARD）ごとに1本。
+- 難易度：タイトルで NORMAL / HARD を選ぶ（settings.mode に保存）。`Difficulty`（`stages/types.ts` の `DIFFICULTY`）が
+  弾の強度・雑魚の射撃間隔・HP・フェーズ時間・得点倍率・決死ボム猶予・アイテム吸引半径と、ハード専用の追加（`hard` / `hardOnly`）を決める。
+  詳細は docs/STAGES.md「ハードモード」。`game.setMode(m)` → `setDifficulty(DIFFICULTY[m])`（次の start() から）。
 - 闇（3面）：`BackgroundPreset.darkness / darkRadius`。全画面の覆い（renderOrder 2.5）で、背景・敵・ボス（≦2）は暗く、
   自機ショット・エフェクト・弾・アイテム・自機マーカーは覆いの上に描かれる。主人公の周りだけ明るい。
 
@@ -72,6 +74,7 @@ src/game/
   `__bloom.skipToStage(n)`、`__bloom.clearStage()`（今の面のボスを即撃破 → 集計 → 次の面。集計・移動・エンディング中に呼ぶとそれを飛ばす）、
   `__bloom.advance(sec)`（描画なしで時間を進める。テスト用）。URL `?stage=N`（その面から開始。パワーは StageDef.startPower）、
   `?boss=1` / `?midboss=1` は開始した面に効く。
+- モード：`state()` に mode（遊んでいる難易度 'normal' | 'hard'）/ selectedMode（タイトルの選択）、`__bloom.setMode(m)`、URL `?mode=hard`。
 
 ## フェーズ
 1. 操作検証: 自機移動・カメラ・接近弾・判定

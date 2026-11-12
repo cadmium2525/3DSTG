@@ -143,6 +143,9 @@ export interface HeroineMotion {
 /* Save / settings                            src/save.ts              */
 /* ------------------------------------------------------------------ */
 
+/** Difficulty mode chosen on the title screen (src/game/stages/types.ts DIFFICULTY). */
+export type GameMode = 'normal' | 'hard';
+
 export interface Settings {
   muted: boolean;
   /** 低速移動 toggle. */
@@ -150,13 +153,18 @@ export interface Settings {
   /** Drag sensitivity multiplier, 0.5..2. */
   sensitivity: number;
   quality: 'auto' | 'low' | 'high';
+  /** Selected mode (title selector); the start button starts this mode. */
+  mode: GameMode;
 }
 
 export interface SaveStore {
   readonly settings: Settings;
+  /** Hi-score of the currently selected mode (settings.mode). */
   readonly hiScore: number;
-  /** Returns true when it is a new record. */
-  submitScore(score: number): boolean;
+  /** Hi-score of a given mode (separate records per mode). */
+  hiScoreFor(mode: GameMode): number;
+  /** Returns true when it is a new record (for `mode`, default settings.mode). */
+  submitScore(score: number, mode?: GameMode): boolean;
   /** Persist current settings (call after mutating `settings`). */
   saveSettings(): void;
 }
@@ -177,6 +185,8 @@ export interface HudData {
   powerProgress: number;
   /** null when no boss is present. hp is 0..1. */
   boss: null | { name: string; hp: number; pattern?: string };
+  /** Mode being played (the HUD shows a small HARD tag). */
+  mode?: GameMode;
 }
 
 export interface ResultData {
@@ -191,6 +201,8 @@ export interface ResultData {
   allClear?: boolean;
   /** Per-stage breakdown (cleared stages, plus the one the run ended in). */
   stages?: StageResult[];
+  /** Mode the run was played in (hiScore / newRecord are for this mode). */
+  mode?: GameMode;
 }
 
 export interface StageResult {
@@ -217,6 +229,9 @@ export interface StageClearData {
   total: number;
   /** True when the stage is a placeholder (reuses stage 1 content). */
   placeholder?: boolean;
+  /** Score multiplier of the mode (hard ×1.5; shown in the tally when ≠ 1). Values above already include it. */
+  scoreMul?: number;
+  mode?: GameMode;
 }
 
 export interface UiCallbacks {

@@ -222,7 +222,7 @@ export class Enemies {
     this.age[s] = 0;
     this.delay[s] = delay;
     this.stay[s] = stay;
-    this.fireEvery[s] = fireEvery;
+    this.fireEvery[s] = fireEvery * this.difficulty.fireRate;
     this.fireT[s] = def.fire?.firstDelay ?? 0.1 + this.rng.next() * 0.4;
     this.trailT[s] = 0;
     this.intensity[s] = scaleIntensity(intensity * (def.fire?.intensityMul ?? 1), this.difficulty);

@@ -1,6 +1,7 @@
 /**
  * Stage 2 fairness table: every stage-2 pattern alone, plus the mid-boss / boss phase combos at
- * their real intensities (and ×1.2 as a hard-mode margin). /dev/stage2-fairness.html
+ * their real intensities (and ×DIFFICULTY.hard.bullet = 1.3 with ?hard=1, plus the hard-only layers).
+ * /dev/stage2-fairness.html
  *   ?seeds=10 &quality=2 &only=coronaRays,totalEclipse+coronaRays
  */
 import type { PatternId } from '../src/core/types';
@@ -8,6 +9,7 @@ import { PLAYER } from '../src/core/config';
 import { bossOrigin, DodgeBot, type FairnessRow } from '../src/danmaku/bot';
 import { DanmakuSim } from '../src/danmaku/sim';
 import '../src/danmaku/stage2';
+import { DIFFICULTY } from '../src/game/stages/types';
 
 /** runFairness (src/danmaku/bot.ts) with a per-pattern intensity. */
 function runFairnessMix(pats: { id: PatternId; I: number }[], seeds: number, duration: number, quality: 0 | 1 | 2): FairnessRow {
@@ -47,7 +49,7 @@ function runFairnessMix(pats: { id: PatternId; I: number }[], seeds: number, dur
 const q = new URLSearchParams(location.search);
 const seeds = Number(q.get('seeds') ?? 10);
 const quality = Number(q.get('quality') ?? 2) as 0 | 1 | 2;
-type Row = { label: string; ids: PatternId[]; I: number; Is?: number[]; duration?: number };
+type Row = { label: string; ids: PatternId[]; I: number; Is?: number[]; duration?: number; hardOnly?: boolean };
 const rows: Row[] = [
   // enemies (an enemy volley runs ~0.5 s but repeats every fireEvery; test as a continuous stream)
   { label: 'mothDust', ids: ['mothDust'], I: 0.48 },
@@ -72,6 +74,13 @@ const rows: Row[] = [
   { label: 'B4 eclipse+corona', ids: ['totalEclipse', 'coronaRays'], I: 0.55, Is: [0.55, 0.28], duration: 20 },
   { label: 'aimed+wisp+moth (road mix)', ids: ['aimedBurst', 'wispSpread', 'mothDust'], I: 0.46 },
 ];
+// Hard-only layers (stage2/index.ts `hard`), run at the hard multiplier only.
+const HARD_ROWS: Row[] = [
+  { label: 'M2+ flicker+lantern+aimed', ids: ['flickerCurtain', 'lanternDrift', 'aimedBurst'], I: 0.5, Is: [0.5, 0.3, 0.3] },
+  { label: 'B1+ corona+aimed', ids: ['coronaRays', 'aimedBurst'], I: 0.5, Is: [0.5, 0.3] },
+  { label: 'B3+ crescent+corona+shard', ids: ['crescentSweep', 'coronaRays', 'shardRing'], I: 0.5, Is: [0.5, 0.22, 0.3] },
+];
+if (q.has('hard')) rows.push(...HARD_ROWS.map((r) => ({ ...r, hardOnly: true })));
 const only = q.get('only')?.split(',');
 const out = document.getElementById('out')!;
 const lines = [`stage 2 fairness  ${seeds} seeds  quality ${quality}  (combos at their per-pattern intensities)\n`];
@@ -80,7 +89,8 @@ const results: Record<string, unknown>[] = [];
 setTimeout(() => {
   for (const r of rows) {
     if (only && !only.includes(r.label) && !only.includes(r.ids.join('+'))) continue;
-    for (const mul of q.has('hard') ? [1, 1.2] : [1]) {
+    const H = DIFFICULTY.hard.bullet;
+    for (const mul of r.hardOnly ? [H] : q.has('hard') ? [1, H] : [1]) {
       const I = Math.min(1, r.I * mul);
       const f = runFairnessMix(r.ids.map((id, k) => ({ id, I: Math.min(1, (r.Is?.[k] ?? r.I) * mul) })), seeds, r.duration ?? 15, quality);
       results.push({ ...f, label: r.label, I });

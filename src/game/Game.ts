@@ -15,6 +15,7 @@ import {
   PATTERN_NAMES,
   type AudioEngine,
   type Danmaku,
+  type GameMode,
   type GameUI,
   type HudData,
   type SaveStore,
@@ -22,7 +23,7 @@ import {
   type StageResult,
 } from '../core/types';
 import { Background } from './Background';
-import { BossState, type BossConfig, type BossEvents, type BossLike } from './bosses/BossLike';
+import { BossState, resolveBossConfig, type BossConfig, type BossEvents, type BossLike } from './bosses/BossLike';
 import { CameraRig } from './CameraRig';
 import { Effects } from './Effects';
 import { Enemies, MAX_ENEMIES } from './Enemies';
@@ -39,7 +40,7 @@ import { BOMB, ITEMS, POWER, SCORE } from './StageData';
 import { Items, ItemKind } from './Items';
 import { Bomb } from './Bomb';
 import { eventTime, getStage, STAGES, stageCount, validateStages } from './stages';
-import { DIFFICULTY, type Difficulty, type ScoreTable, type StageDef } from './stages/types';
+import { DIFFICULTY, eventsFor, isGameMode, type Difficulty, type ScoreTable, type StageDef } from './stages/types';
 
 export type GameState = 'title' | 'playing' | 'paused' | 'result';
 /** Sub-state while playing. */
@@ -281,7 +282,8 @@ export class Game {
         effects: this.effects,
         rng: this.rng,
         events: this.makeBossEvents(role),
-        config: slot.config,
+        // Phase timeouts × difficulty and the hard-only layers (normal: slot.config itself).
+        config: resolveBossConfig(slot.config, this.difficulty),
         difficulty: this.difficulty,
         role,
       });
@@ -303,7 +305,7 @@ export class Game {
     this.hudMid.name = def.midBoss?.config.name ?? '';
     this.midBossResult = null;
     this.enemies.difficulty = this.difficulty;
-    this.stage.reset(def.events);
+    this.stage.reset(eventsFor(def.events, this.difficulty));
   }
 
   /** Start playing stage `n` (stats of the run carry over). */
@@ -382,7 +384,7 @@ export class Game {
         this.items.magnetAll(1.5);
         this.items.drop(ItemKind.Power, x, y, z, ITEMS.midBossKill.power, 1, 1.6);
         this.items.drop(ItemKind.Star, x, y, z, ITEMS.midBossKill.stars, ITEMS.starValue, 2);
-        this.ui.announce('MID BOSS DEFEATED', `+${this.sc.midBossKill.toLocaleString()}`);
+        this.ui.announce('MID BOSS DEFEATED', `+${this.scaled(this.sc.midBossKill).toLocaleString()}`);
         this.endMidBoss('defeated');
       },
       onEscaped: () => {
@@ -410,7 +412,7 @@ export class Game {
     if (killed) {
       this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
       this.addScore(this.sc.bossKill);
-      this.ui.announce('BOSS DEFEATED', `+${this.sc.bossKill.toLocaleString()}`);
+      this.ui.announce('BOSS DEFEATED', `+${this.scaled(this.sc.bossKill).toLocaleString()}`);
     } else {
       this.danmaku.clear();
       this.ui.announce('TIME UP', this.def.boss.config.escapeText ?? '');
@@ -428,12 +430,13 @@ export class Game {
     const n = this.stageNo;
     const sc = this.sc;
     const stageScore = this.score - this.stageStartScore;
+    // Bonus values shown already include the mode's score multiplier (hard ×1.5).
     const bonus = [
-      { label: 'CLEAR BONUS', value: sc.stageClearBonus * n },
-      { label: `残機 × ${this.player.lives}`, value: this.player.lives * sc.lifeBonus },
+      { label: 'CLEAR BONUS', value: this.scaled(sc.stageClearBonus * n) },
+      { label: `残機 × ${this.player.lives}`, value: this.scaled(this.player.lives * sc.lifeBonus) },
     ];
-    if (this.stageMisses === 0) bonus.push({ label: 'NO MISS', value: sc.noMissBonus });
-    for (const b of bonus) this.addScore(b.value);
+    if (this.stageMisses === 0) bonus.push({ label: 'NO MISS', value: this.scaled(sc.noMissBonus) });
+    for (const b of bonus) this.score += b.value;
     this.stageResults.push({ number: n, title: this.def.title, score: this.score - this.stageStartScore, cleared: true });
     this.items.magnetAll(TALLY_SEC);
     this.sfx('clear');
@@ -447,6 +450,8 @@ export class Game {
       bonus,
       total: this.score,
       placeholder: this.def.placeholder,
+      scoreMul: this.difficulty.scoreMul,
+      mode: this.difficulty.id,
     });
     this.hudDirty = true;
   }
@@ -541,6 +546,7 @@ export class Game {
     this.player.alive = true;
     this.player.invincible = 0;
     this.bg.setPreset(STAGES[0].background, 1.2);
+    this.syncMode();
     this.ui.showTitle(this.save.hiScore);
     this.intro.showTitle(!this.titleShown);
     this.titleShown = true;
@@ -558,6 +564,8 @@ export class Game {
     if (!turning) this.intro.hide();
     this.clearWorld();
     this.effects.clear();
+    // The selected mode (title selector / setMode) applies from this run on.
+    this.syncMode();
     this.rng.reseed(this.seed);
     this.state = 'playing';
     this.score = 0;
@@ -640,6 +648,38 @@ export class Game {
   settingsChanged(): void {
     this.audio.setMuted(this.save.settings.muted);
     this.quality.setMode(this.save.settings.quality);
+    // A mode change on the title / result screen applies at once; during a run, from the next start().
+    if (this.state === 'title' || this.state === 'result') this.syncMode();
+  }
+
+  /* ---- mode (NORMAL / HARD) ---- */
+
+  /** Mode being played (or about to be, on the title screen). */
+  get mode(): GameMode {
+    return this.difficulty.id;
+  }
+
+  /** Select a mode (saved in settings). Applies now outside a run, else from the next start(). */
+  setMode(m: GameMode): void {
+    if (!isGameMode(m)) return;
+    this.save.settings.mode = m;
+    this.save.saveSettings();
+    if (this.state === 'title' || this.state === 'result') {
+      this.syncMode();
+      if (this.state === 'title') this.ui.showTitle(this.save.hiScore);
+    }
+  }
+
+  /** Point the difficulty at the selected mode (no-op when it already matches). */
+  private syncMode(): void {
+    const d = DIFFICULTY[this.save.settings.mode] ?? DIFFICULTY.normal;
+    if (d !== this.difficulty) this.setDifficulty(d);
+    this.app.dataset.mode = d.id;
+  }
+
+  /** `n` points as the mode adds them (hard ×1.5). */
+  private scaled(n: number): number {
+    return Math.round(n * this.difficulty.scoreMul);
   }
 
   /** Make the last cleared stage's row include everything scored since its start. */
@@ -659,7 +699,8 @@ export class Game {
     if (allClear) this.settleLastStageRow();
     const stages = this.stageResults.slice();
     if (!allClear) stages.push({ number: this.stageNo, title: this.def.title, score: this.score - this.stageStartScore, cleared: false });
-    const newRecord = this.save.submitScore(this.score);
+    const mode = this.difficulty.id;
+    const newRecord = this.save.submitScore(this.score, mode);
     this.clearWorld();
     this.state = 'result';
     this.rig.mode = 'title';
@@ -677,8 +718,9 @@ export class Game {
       allClear,
       stages,
       score: this.score,
-      hiScore: this.save.hiScore,
+      hiScore: this.save.hiScoreFor(mode),
       newRecord,
+      mode,
       graze: this.graze,
       timeSec: Math.round(this.playTime * 10) / 10,
       livesLeft: p.lives,
@@ -689,8 +731,9 @@ export class Game {
   /* Gameplay events                                                     */
   /* ------------------------------------------------------------------ */
 
+  /** Every score gain goes through here (× Difficulty.scoreMul). */
   private addScore(n: number): void {
-    this.score += Math.round(n);
+    this.score += Math.round(n * this.difficulty.scoreMul);
   }
 
   private sfx(name: SfxName, minGap = 0, pitch = 0): void {
@@ -810,7 +853,7 @@ export class Game {
   /** A bullet touched the heroine: with a bomb in stock, wait briefly for a 決死ボム. */
   private beginHitPending(): void {
     const p = this.player.position;
-    this.hitPendingT = BOMB.deathbombWindow;
+    this.hitPendingT = this.difficulty.deathbombSec;
     this.app.dataset.hitPending = '1'; // the UI makes the bomb button flash
     this.effects.burst(p.x, p.y, p.z, PALETTE.pink, 14, 4, 0.22, 0.4);
     this.rig.shake(0.1, 4);
@@ -913,7 +956,7 @@ export class Game {
           delete this.app.dataset.hitPending;
         }
       } else {
-        pendingU = 1 - this.hitPendingT / BOMB.deathbombWindow;
+        pendingU = 1 - this.hitPendingT / this.difficulty.deathbombSec;
         dt *= BOMB.deathbombTimeScale;
       }
     }
@@ -1019,7 +1062,8 @@ export class Game {
     this.hudDirty = false;
     const h = this.hud;
     h.score = this.score;
-    h.hiScore = Math.max(this.save.hiScore, this.score);
+    h.hiScore = Math.max(this.save.hiScoreFor(this.difficulty.id), this.score);
+    h.mode = this.difficulty.id;
     h.lives = this.player.lives;
     h.graze = this.graze;
     h.bombs = this.bombs;
@@ -1081,6 +1125,8 @@ export class Game {
       placeholder: !!this.def.placeholder,
       stages: this.stageResults.map((r) => ({ ...r })),
       difficulty: this.difficulty.id,
+      mode: this.difficulty.id,
+      selectedMode: this.save.settings.mode,
       darkness: Math.round(this.bg.darkness * 1000) / 1000,
       score: this.score,
       lives: this.player.lives,
@@ -1231,12 +1277,14 @@ export class Game {
   }
 
   /**
-   * Hard-mode hook: change the difficulty multipliers (takes effect from the next start();
-   * cached bosses are rebuilt so their HP / intensities pick it up).
+   * Difficulty hook (NORMAL / HARD go through setMode → syncMode): change the multipliers (takes
+   * effect from the next start(); cached bosses are rebuilt so their HP / intensities / hard
+   * layers pick it up).
    */
   setDifficulty(d: Difficulty): void {
     this.difficulty = d;
     this.enemies.difficulty = d;
+    this.items.attractMul = d.attract;
     for (const b of this.bossCache.values()) b.dispose();
     this.bossCache.clear();
     this.applyStageDef(this.def);

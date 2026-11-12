@@ -13,32 +13,34 @@ import './enemies';
 export const STAGE1_EVENTS: StageEvent[] = [
   // --- opening: petals, then the new star-sea kinds one by one ---
   { t: 2.0, type: 'wave', formation: 'line', kind: 'petal', count: 5, side: -1, stay: 4.0, fireEvery: 1.8, intensity: 0.3 },
-  { t: 4.6, type: 'wave', formation: 'v', kind: 'petal', count: 5, side: 0, stay: 4.0, fireEvery: 1.6, intensity: 0.32 },
+  { t: 4.6, type: 'wave', formation: 'v', kind: 'petal', count: 5, side: 0, stay: 4.0, fireEvery: 1.6, intensity: 0.32, hard: { count: 7 } },
   { t: 7.4, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 3.3, fireEvery: 0, intensity: 0.3, x: 1, delayStep: 0.8 },
   { t: 9.2, type: 'intro', pattern: 'rippleRing', duration: 4.5, intensity: 0.25, sub: 'リングの隙間をくぐれ' },
   { t: 10.8, type: 'wave', formation: 'columns', kind: 'crystal', count: 4, side: 1, stay: 3.5, fireEvery: 1.7, intensity: 0.32 },
   { t: 14.0, type: 'wave', formation: 'sides', kind: 'turret', count: 2, side: 0, stay: 5.5, fireEvery: 2.0, intensity: 0.28, y: 2.6 },
-  { t: 14.6, type: 'wave', formation: 'arc', kind: 'petal', count: 6, side: 0, stay: 4.0, fireEvery: 1.5, intensity: 0.36 },
+  { t: 14.6, type: 'wave', formation: 'arc', kind: 'petal', count: 6, side: 0, stay: 4.0, fireEvery: 1.5, intensity: 0.36, hard: { count: 7 } },
   { t: 18.6, type: 'wave', formation: 'low', kind: 'jelly', count: 3, side: 0, stay: 5.0, fireEvery: 2.8, intensity: 0.3 },
   { t: 20.8, type: 'wave', formation: 'diagonal', kind: 'comet', count: 3, side: 0, stay: 3.1, fireEvery: 0, intensity: 0.32, x: -1, delayStep: 0.55 },
   { t: 22.6, type: 'intro', pattern: 'constellationRain', duration: 5.0, intensity: 0.25, sub: '星の線を見切れ' },
-  { t: 24.0, type: 'wave', formation: 'line', kind: 'crystal', count: 5, side: 1, stay: 3.5, fireEvery: 1.6, intensity: 0.36 },
+  { t: 24.0, type: 'wave', formation: 'line', kind: 'crystal', count: 5, side: 1, stay: 3.5, fireEvery: 1.6, intensity: 0.36, hard: { count: 6 } },
+  // HARD: one more comet pair crossing before the lull.
+  { t: 27.0, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 3.1, fireEvery: 0, intensity: 0.34, x: 1, delayStep: 0.6, hardOnly: true },
   // --- lull: a shower of shooting stars, peaceful jellyfish drifting up (they never fire) ---
   { t: 30.6, type: 'scenery', name: 'starfall', duration: 5.5 },
   { t: 31.0, type: 'wave', formation: 'low', kind: 'jelly', count: 4, side: 0, stay: 4.2, fireEvery: 99, intensity: 0.3, quiet: true, delayStep: 0.4 },
   // Mid-boss: stage time stops here until it is defeated or flies away.
   { t: 36.0, type: 'midboss' },
   // --- second half: denser mixes ---
-  { t: 37.2, type: 'wave', formation: 'v', kind: 'petal', count: 7, side: 0, stay: 3.5, fireEvery: 1.4, intensity: 0.4 },
+  { t: 37.2, type: 'wave', formation: 'v', kind: 'petal', count: 7, side: 0, stay: 3.5, fireEvery: 1.4, intensity: 0.4, hard: { count: 9 } },
   { t: 39.0, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 3.0, fireEvery: 0, intensity: 0.36, delayStep: 0.9 },
   { t: 40.6, type: 'wave', formation: 'sides', kind: 'turret', count: 4, side: 0, stay: 5.0, fireEvery: 1.9, intensity: 0.32, y: 3.4, delayStep: 0.3 },
   { t: 43.6, type: 'wave', formation: 'columns', kind: 'crystal', count: 6, side: -1, stay: 3.0, fireEvery: 1.4, intensity: 0.42 },
   { t: 46.4, type: 'wave', formation: 'low', kind: 'jelly', count: 3, side: 0, stay: 4.5, fireEvery: 2.4, intensity: 0.38, x: 1.5 },
   { t: 47.6, type: 'wave', formation: 'diagonal', kind: 'comet', count: 3, side: 0, stay: 3.0, fireEvery: 0, intensity: 0.38, x: 1, delayStep: 0.5 },
-  { t: 49.8, type: 'wave', formation: 'arc', kind: 'crystal', count: 7, side: 0, stay: 3.0, fireEvery: 1.3, intensity: 0.44 },
+  { t: 49.8, type: 'wave', formation: 'arc', kind: 'crystal', count: 7, side: 0, stay: 3.0, fireEvery: 1.3, intensity: 0.44, hard: { count: 8 } },
   // --- the push right before WARNING: petals from both sides, a turret pair, a comet pair ---
-  { t: 53.2, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: -1, stay: 3.4, fireEvery: 1.5, intensity: 0.4 },
-  { t: 53.9, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: 1, stay: 3.0, fireEvery: 1.5, intensity: 0.4 },
+  { t: 53.2, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: -1, stay: 3.4, fireEvery: 1.5, intensity: 0.4, hard: { count: 7 } },
+  { t: 53.9, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: 1, stay: 3.0, fireEvery: 1.5, intensity: 0.4, hard: { count: 7 } },
   { t: 54.6, type: 'wave', formation: 'sides', kind: 'turret', count: 2, side: 0, stay: 3.6, fireEvery: 1.7, intensity: 0.34, y: 1.2 },
   { t: 55.6, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 2.9, fireEvery: 0, intensity: 0.4, delayStep: 0.35 },
   { t: 60.0, type: 'warning' },
@@ -68,6 +70,8 @@ export const STAGE1_MIDBOSS: LuxiaConfig = {
         { id: 'wingSweep', intensity: 0.3 },
         { id: 'aimedBurst', intensity: 0.28 },
       ],
+      // HARD: small rings close around the heroine between the wing walls.
+      hard: { patterns: [{ id: 'jellyRing', intensity: 0.3 }] },
       hpEnd: 0.5,
       timeout: 8,
     },
@@ -98,13 +102,16 @@ export const STAGE1_BOSS: BossConfig = {
   targetZ: 1.5,
   cancelOnTimeout: true,
   phases: [
-    { patterns: [{ id: 'spiralCorridor', intensity: 0.5 }], hpEnd: 0.68, timeout: 14 },
-    { patterns: [{ id: 'petalBloom', intensity: 0.55 }], hpEnd: 0.36, timeout: 15 },
+    // HARD: aimed volleys on top of the corridor / the bloom.
+    { patterns: [{ id: 'spiralCorridor', intensity: 0.5 }], hard: { patterns: [{ id: 'aimedBurst', intensity: 0.3 }] }, hpEnd: 0.68, timeout: 14 },
+    { patterns: [{ id: 'petalBloom', intensity: 0.55 }], hard: { patterns: [{ id: 'aimedBurst', intensity: 0.3 }] }, hpEnd: 0.36, timeout: 15 },
     {
       patterns: [
         { id: 'rippleRing', intensity: 0.45 },
         { id: 'constellationRain', intensity: 0.45 },
       ],
+      // HARD: this pair is already near the bullet pool limit — only ×1.1 here.
+      hard: { bullet: 1.1 },
       hpEnd: 0,
       timeout: 20,
     },

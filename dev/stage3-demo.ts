@@ -3,12 +3,15 @@
  *   ?pattern=shadowMimic&auto=1 …   same viewer as dev/danmaku.html (stage-3 emitters registered)
  *   ?fair3=1                         headless fairness table for every stage-3 pattern + the boss combos
  *                                    (&intensity=… overrides; &quality=0..2; &seeds=10)
+ *                                    &hard=1: intensities × DIFFICULTY.hard.bullet, enemy volleys every × fireRate,
+ *                                    plus the hard-only boss layers
  */
 import { FIELD, PLAYER } from '../src/core/config';
 import type { PatternId } from '../src/core/types';
 import { bossOrigin, DodgeBot } from '../src/danmaku/bot';
 import { DanmakuSim } from '../src/danmaku/sim';
 import '../src/danmaku/stage3';
+import { DIFFICULTY } from '../src/game/stages/types';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -40,6 +43,15 @@ const CASES: Case[] = [
   { name: 'lightShadowHelix 0.5', specs: [{ id: 'lightShadowHelix', intensity: 0.5 }], duration: 15 },
   { name: 'B5: helix .62', specs: [{ id: 'lightShadowHelix', intensity: 0.62 }], duration: 20 },
 ];
+const HARD = q.has('hard');
+/** Hard-only layers (stage3/index.ts `hard`). */
+if (HARD) CASES.push(
+  { name: 'P1+: slash .42 + shot .3 + shield .25', specs: [{ id: 'shadowSlash', intensity: 0.42 }, { id: 'shadowShot', intensity: 0.3 }, { id: 'blackShield', intensity: 0.25 }], duration: 14 },
+  { name: 'B2+: echo .55 + shot .25', specs: [{ id: 'shadowEcho', intensity: 0.55 }, { id: 'shadowShot', intensity: 0.25 }], duration: 30 },
+  { name: 'B5+: helix .62 + shot .3 (極)', specs: [{ id: 'lightShadowHelix', intensity: 0.62 }, { id: 'shadowShot', intensity: 0.3 }], duration: 32 },
+);
+const MUL = HARD ? DIFFICULTY.hard.bullet : 1;
+const EVERY = HARD ? DIFFICULTY.hard.fireRate : 1;
 
 function run(c: Case, seeds: number, quality: 0 | 1 | 2, iOverride: number | null) {
   const dt = 1 / 30;
@@ -66,10 +78,10 @@ function run(c: Case, seeds: number, quality: 0 | 1 | 2, iOverride: number | nul
       while (t < c.duration + 4.5) {
         for (let k = 0; k < c.specs.length; k++) {
           const sp = c.specs[k];
-          const I = iOverride ?? sp.intensity;
+          const I = Math.min(1, (iOverride ?? sp.intensity) * MUL);
           if (sp.every) {
             if (t >= next[k] && t < c.duration) {
-              next[k] += sp.every;
+              next[k] += sp.every * EVERY;
               sim.startPattern(sp.id, { origin: origins[k], duration: sp.dur ?? 0.5, intensity: I, seed: s * 7 + 3 + k * 101 + Math.floor(t * 10) });
             }
           } else if (next[k] >= 0) {
@@ -97,7 +109,7 @@ if (q.get('fair3') === '1') {
   const quality = num('quality', 2) as 0 | 1 | 2;
   const iOv = q.has('intensity') ? num('intensity', 0.5) : null;
   const only = q.get('only');
-  const lines = [`stage 3 fairness  q=${quality}  ${seeds} seeds  dt=1/30  field ${FIELD.halfW}x${FIELD.halfH}\n`];
+  const lines = [`stage 3 fairness${HARD ? ' HARD ×' + MUL : ''}  q=${quality}  ${seeds} seeds  dt=1/30  field ${FIELD.halfW}x${FIELD.halfH}\n`];
   out.textContent = lines.join('\n');
   setTimeout(() => {
     for (const c of CASES) {

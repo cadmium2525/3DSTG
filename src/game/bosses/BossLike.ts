@@ -22,8 +22,24 @@ export interface BossPhaseDef {
   patterns: { id: PatternId; intensity: number }[];
   /** Phase ends when hp (0..1) falls to this value… */
   hpEnd: number;
-  /** …or after this many seconds (last phase: timeout = the boss escapes, no kill bonus). */
+  /** …or after this many seconds (last phase: timeout = the boss escapes, no kill bonus). Scaled by Difficulty.timeout. */
   timeout: number;
+  /**
+   * Hard-only additions (used when Difficulty.extraLayers): extra pattern layers run in parallel
+   * with `patterns` (their intensities are scaled by Difficulty.bullet like every other pattern),
+   * and an optional spell-name override.
+   */
+  hard?: BossPhaseHard;
+}
+
+export interface BossPhaseHard {
+  patterns?: { id: PatternId; intensity: number }[];
+  name?: string;
+  /**
+   * Bullet multiplier for this phase's normal `patterns` instead of Difficulty.bullet (e.g. 1.1 for
+   * a phase that already sits near the bullet-pool limit). The added `patterns` use Difficulty.bullet.
+   */
+  bullet?: number;
 }
 
 export interface BossConfig {
@@ -100,6 +116,30 @@ export interface BossLike {
   /** Player died: stop patterns, freeze the state machine (visuals keep animating). */
   freeze(): void;
   dispose(): void;
+}
+
+/**
+ * The config a boss actually runs with at difficulty `d`: phase timeouts × d.timeout and, when
+ * d.extraLayers, each phase's `hard` additions merged in (extra patterns appended after the
+ * normal ones, so subclasses that look up a pattern by id keep working). Normal mode returns
+ * `config` itself.
+ */
+export function resolveBossConfig<C extends BossConfig>(config: C, d: Difficulty): C {
+  if (!d.extraLayers && d.timeout === 1) return config;
+  return {
+    ...config,
+    phases: config.phases.map((p) => {
+      const h = d.extraLayers ? p.hard : undefined;
+      // scaleIntensity multiplies by d.bullet later; pre-scale so this phase ends up × h.bullet.
+      const base = h?.bullet !== undefined ? p.patterns.map((x) => ({ ...x, intensity: (x.intensity * h.bullet!) / d.bullet })) : p.patterns;
+      return {
+        ...p,
+        name: h?.name ?? p.name,
+        patterns: h?.patterns ? [...base, ...h.patterns] : base,
+        timeout: p.timeout * d.timeout,
+      };
+    }),
+  };
 }
 
 export type BossFactory = (ctx: BossContext) => BossLike;

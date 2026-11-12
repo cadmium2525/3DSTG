@@ -378,6 +378,119 @@
   }
 }
 
+/* ---- mode selector (NORMAL / HARD) ---- */
+.bd-mode {
+  position: relative;
+  display: flex;
+  width: 86%;
+  gap: calc(var(--u) * 1);
+  margin-bottom: calc(var(--u) * 4.2);
+  padding: calc(var(--u) * 0.9);
+  border-radius: 999px;
+  background: rgba(10, 8, 30, 0.62);
+  box-shadow: 0 0 0 1px var(--glass-line) inset;
+  pointer-events: auto;
+}
+.bd-mode-btn {
+  flex: 1 1 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: calc(var(--u) * 1.6);
+  min-height: max(44px, calc(var(--u) * 11));
+  padding: 0 calc(var(--u) * 2);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  pointer-events: auto;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.bd-mode-btn,
+.bd-mode-btn * {
+  align-self: center;
+}
+.bd-mode-btn b {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 3.9);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  margin-right: -0.16em;
+}
+.bd-mode-btn span {
+  font-size: calc(var(--u) * 2.7);
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+}
+.bd-mode-btn[data-mode='normal'].is-on {
+  color: #fff;
+  background: linear-gradient(100deg, rgba(79, 232, 255, 0.5), rgba(120, 140, 255, 0.5));
+  box-shadow: 0 0 0 1px rgba(160, 230, 255, 0.6) inset, 0 0 calc(var(--u) * 4) rgba(79, 232, 255, 0.35);
+}
+.bd-mode-btn[data-mode='hard'] b {
+  color: rgba(255, 150, 175, 0.75);
+}
+.bd-mode-btn[data-mode='hard'].is-on {
+  color: #fff;
+  background: linear-gradient(100deg, rgba(220, 30, 72, 0.85), rgba(138, 50, 230, 0.85));
+  box-shadow: 0 0 0 1px rgba(255, 140, 180, 0.7) inset, 0 0 calc(var(--u) * 5) rgba(230, 40, 100, 0.55);
+  text-shadow: 0 1px 6px rgba(60, 0, 30, 0.6);
+}
+.bd-mode-btn[data-mode='hard'].is-on b {
+  color: #fff;
+}
+.bd-mode-btn.is-down {
+  filter: brightness(1.2);
+}
+/* HARD selected: the start button and the hi-score pill take the crimson / violet accent. */
+.bd-title[data-mode='hard'] .bd-start {
+  background: linear-gradient(100deg, rgba(232, 36, 80, 0.94), rgba(170, 52, 200, 0.94) 52%, rgba(110, 60, 255, 0.94));
+  box-shadow: 0 0 0 1px rgba(255, 200, 220, 0.4) inset, 0 6px 24px rgba(200, 40, 110, 0.4), 0 0 26px rgba(230, 40, 100, 0.3);
+}
+.bd-title[data-mode='hard'] .bd-start::before {
+  box-shadow: 0 0 0 1px rgba(255, 150, 190, 0.55), 0 0 calc(var(--u) * 8) rgba(230, 40, 100, 0.55);
+}
+.bd-hi-mode {
+  align-self: center;
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.4);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  padding: calc(var(--u) * 0.4) calc(var(--u) * 1.6);
+  border-radius: 999px;
+  color: rgba(160, 230, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(79, 232, 255, 0.35) inset;
+}
+.bd-title[data-mode='hard'] .bd-hipill {
+  box-shadow: 0 0 0 1px rgba(255, 90, 140, 0.45) inset;
+}
+.bd-title[data-mode='hard'] .bd-hi-mode {
+  color: #fff;
+  background: linear-gradient(100deg, rgba(220, 30, 72, 0.8), rgba(138, 50, 230, 0.8));
+  box-shadow: none;
+}
+/* With the mode selector below it, the how-to row is a single line (icon beside the text) so the
+   bottom block stays clear of the heroine and her magic circle; short screens drop the icons. */
+.bd-title .bd-howto {
+  gap: calc(var(--u) * 1.2);
+  margin-bottom: calc(var(--u) * 3.2) !important;
+}
+.bd-title .bd-howto li {
+  flex-direction: row;
+  justify-content: center;
+  gap: calc(var(--u) * 1);
+}
+.bd-title .bd-howto svg {
+  flex: none;
+  width: calc(var(--u) * 5.6);
+  height: calc(var(--u) * 5.6);
+  padding: calc(var(--u) * 1);
+}
+@media (max-height: 700px) {
+  .bd-title .bd-howto svg {
+    display: none;
+  }
+}
+
 .bd-gear {
   position: absolute;
   top: calc(var(--sat) + var(--u) * 3);
@@ -435,6 +548,23 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
   color: rgba(255, 236, 190, 0.85);
+}
+/* HARD tag next to the HUD hi-score */
+.bd-mode-tag {
+  display: none;
+  align-self: center;
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.3);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: calc(var(--u) * 0.3) calc(var(--u) * 1.4);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(100deg, rgba(220, 30, 72, 0.75), rgba(138, 50, 230, 0.75));
+  opacity: 0.85;
+}
+.bd-hud.is-hard .bd-mode-tag {
+  display: inline-block;
 }
 .bd-pause-btn {
   flex: none;
@@ -1040,6 +1170,23 @@
   background-image: linear-gradient(180deg, #ffffff 10%, #c9b6ff 55%, var(--pink));
   filter: drop-shadow(0 0 calc(var(--u) * 3) rgba(255, 111, 181, 0.55));
 }
+.bd-result-mode {
+  margin-top: calc(var(--u) * -2.5);
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.8);
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+  white-space: pre;
+  color: rgba(160, 230, 255, 0.85);
+}
+.bd-result.is-hard .bd-result-mode {
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 3);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(100deg, rgba(220, 30, 72, 0.8), rgba(138, 50, 230, 0.8));
+  box-shadow: 0 0 calc(var(--u) * 4) rgba(230, 40, 100, 0.45);
+}
 .bd-result-scorebox {
   position: relative;
   display: flex;
@@ -1274,6 +1421,19 @@
   background-clip: text;
   color: transparent;
   filter: drop-shadow(0 0 calc(var(--u) * 2) rgba(255, 209, 102, 0.6));
+}
+.bd-tally-mul {
+  margin-top: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.5) calc(var(--u) * 2.6);
+  border-radius: 999px;
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.6);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  white-space: pre;
+  color: #fff;
+  background: linear-gradient(100deg, rgba(220, 30, 72, 0.8), rgba(138, 50, 230, 0.8));
+  box-shadow: 0 0 calc(var(--u) * 3) rgba(230, 40, 100, 0.45);
 }
 .bd-tally-rows {
   display: flex;

@@ -99,3 +99,33 @@ PhasedBoss を使わない場合は `BossLike` を直接実装する（HUD・ス
 - `?stage=2&invincible=1`（その面から）、`?stage=2&midboss=1`、`?stage=2&boss=1`
 - `__bloom.clearStage()` で集計 → 移動 → 次の面、`__bloom.skipToStage(n)`、`__bloom.advance(sec)`（描画なしで早送り）、`__bloom.state()`
 - コンソールの `[stages]` 警告がないこと
+
+## 9. ハードモード（`Difficulty` と `hard` / `hardOnly`）
+難易度は `src/game/stages/types.ts` の `DIFFICULTY.normal / hard`（`Difficulty`）。面の側で書くのは **ハード専用の追加だけ**。倍率は全部自動で掛かる:
+```ts
+interface Difficulty {
+  id: 'normal' | 'hard';
+  bullet: number;       // 全パターン強度 ×（scaleIntensity で 0..1 に clamp）— 雑魚・紹介・中ボス・ボス・ハード追加分すべて
+  enemyHp: number;      // 雑魚 HP ×
+  bossHp: number;       // 中ボス／ボス maxHp ×
+  fireRate: number;     // WaveEvent.fireEvery ×（< 1 = 雑魚がよく撃つ）
+  timeout: number;      // フェーズの timeout ×
+  scoreMul: number;     // 得点すべて ×（Game.addScore と集計のボーナス）
+  deathbombSec: number; // 決死ボムの猶予（実時間秒）
+  attract: number;      // アイテム吸引半径 ×
+  extraLayers: boolean; // 下の hard / hardOnly を使うか
+}
+```
+- **ボス／中ボスのフェーズ**（`BossPhaseDef.hard`）：`hard: { patterns?: [{ id, intensity }], name? }`。`patterns` は通常のパターンの
+  **後ろに追加**され並列に走る（強度は他と同じく × bullet）。`name` はハードでのスペル名。
+  ゲームは `resolveBossConfig(config, difficulty)`（`bosses/BossLike.ts`）で解決した設定でボスを作るので、`this.config.phases` は
+  ハードでは追加込み・timeout 込みになる。パターンを id で探すボス（エクリプスの totalEclipse）はそのまま動く。
+  ```ts
+  { name: '日輪の光条', patterns: [{ id: 'coronaRays', intensity: 0.5 }],
+    hard: { patterns: [{ id: 'aimedBurst', intensity: 0.3 }] }, hpEnd: 0.75, timeout: 15 },
+  ```
+- **タイムライン**：どのイベントにも `hardOnly: true`（ハードだけで出る）。雑魚の波は `hard: { count: 7 }` のように
+  WaveEvent の一部を上書きできる（`eventsFor(events, d)` が適用。ノーマルでは無視される）。t 昇順は守る。
+- **確認**：`dev/hard-fairness.html`（StageDef から全フェーズと道中をハード設定で組み立ててボットに通す。`?mode=normal` で比較、
+  `?only=stage2`）。行は bot ≥ 9/10・peak < 850 で合格。各面の個別ページも `?hard=1`（`dev/danmaku.html?fairness=1&hard=1`、
+  `dev/stage2-fairness.html?hard=1`、`dev/stage3.html?fair3=1&hard=1`）。ゲームは `?mode=hard`、`__bloom.setMode('hard')`、`__bloom.state().mode`。

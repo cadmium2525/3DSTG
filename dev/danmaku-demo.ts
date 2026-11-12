@@ -4,7 +4,7 @@
  *   &intensity=0.5 &seed=1 &quality=2 &duration=15
  *   &auto=1 (dodge bot) | auto=0 (stationary / drag the dot)
  *   &t=6 &hold=1  (pre-simulate 6 s, then freeze — for screenshots)
- *   ?fairness=1   (headless fairness table for all patterns)
+ *   ?fairness=1   (headless fairness table for all patterns; &hard=1 = intensity × DIFFICULTY.hard.bullet)
  */
 import * as THREE from 'three';
 import { CAMERA, FIELD, PALETTE, PLAYER } from '../src/core/config';
@@ -12,6 +12,7 @@ import { PATTERN_NAMES, type PatternId } from '../src/core/types';
 import { createDanmakuWithSim } from '../src/danmaku/index';
 import { bossOrigin, DodgeBot, runFairness } from '../src/danmaku/bot';
 import { STAGE2_PATTERNS } from '../src/danmaku/stage2';
+import { DIFFICULTY } from '../src/game/stages/types';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -20,8 +21,8 @@ const ALL: PatternId[] = ['spiralCorridor', 'petalBloom', 'rippleRing', 'constel
 if (q.get('fairness') === '1') {
   const out = document.getElementById('out')!;
   out.style.display = 'block';
-  const I = num('intensity', 0.5);
-  const lines = [`fairness  intensity=${I}  15 s  dt=1/30  10 seeds\n`];
+  const I = Math.min(1, num('intensity', 0.5) * (q.has('hard') ? DIFFICULTY.hard.bullet : 1));
+  const lines = [`fairness${q.has('hard') ? ' HARD' : ''}  intensity=${I}  15 s  dt=1/30  10 seeds\n`];
   out.textContent = lines.join('\n');
   setTimeout(() => {
     for (const p of ALL) {

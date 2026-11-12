@@ -6,6 +6,7 @@
  *   ?midboss=1    start at the mid-boss  ?power=N  start at shot power Lv N (1..4)
  *   ?stage=N      start at stage N (1..3; power defaults to that stage's startPower). ?boss / ?midboss
  *                 then apply to that stage. Retry always restarts from stage 1.
+ *   ?mode=hard    select HARD (or ?mode=normal); saved like the title selector
  */
 import { createDanmaku } from './danmaku';
 import { createUI } from './ui';
@@ -61,6 +62,8 @@ const ui = createUI(
 );
 
 game.boot(ui);
+const modeParam = params.get('mode');
+if (modeParam === 'hard' || modeParam === 'normal') game.setMode(modeParam);
 
 // Unlock audio on the first gesture anywhere so the title theme plays before START.
 const unlockOnce = () => audio.unlock();
@@ -108,6 +111,8 @@ declare global {
       clearStage(): void;
       /** Simulate `sec` seconds of game time without rendering (tests / fast-forward). */
       advance(sec: number): void;
+      /** Select NORMAL / HARD (saved; applies now on the title / result screen, else from the next start). */
+      setMode(m: 'normal' | 'hard'): void;
       seed: number;
     };
   }
@@ -128,5 +133,6 @@ window.__bloom = {
   skipToStage: (n) => game.skipToStage(n),
   clearStage: () => game.clearStage(),
   advance: (sec) => game.advance(sec),
+  setMode: (m) => game.setMode(m),
   seed,
 };

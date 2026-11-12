@@ -154,6 +154,8 @@ export class Items {
   private time = 0;
   /** Seconds left of the global magnet (newly spawned items home too). */
   private magnetT = 0;
+  /** Attraction radius multiplier (Difficulty.attract; hard < 1). */
+  attractMul = 1;
 
   // Bullet → star conversion (see beginFrame / cancelBullet).
   private stride = 1;
@@ -321,7 +323,7 @@ export class Items {
     const py = player.y;
     const pz = player.z;
     const line = collect && py > ITEMS.collectLineY;
-    const ar = slow ? ITEMS.attractRadiusSlow : ITEMS.attractRadius;
+    const ar = (slow ? ITEMS.attractRadiusSlow : ITEMS.attractRadius) * this.attractMul;
     const ar2 = ar * ar;
     const pr2 = ITEMS.pickupRadius * ITEMS.pickupRadius;
     const W = FIELD.halfW + 0.3;

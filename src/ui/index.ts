@@ -8,7 +8,7 @@
  */
 import './style.css';
 import { PLAYER } from '../core/config';
-import type { GameUI, HudData, ResultData, SaveStore, Settings, StageClearData, UiCallbacks } from '../core/types';
+import type { GameMode, GameUI, HudData, ResultData, SaveStore, Settings, StageClearData, UiCallbacks } from '../core/types';
 import {
   BARRIER_PIP,
   BOW,
@@ -134,7 +134,7 @@ const TITLE_HTML = `
       <span class="bd-logo-main">BLOOM</span>
       <span class="bd-logo-sub"><i></i>DIVE<i></i></span>
     </div>
-    <div class="bd-hipill"><span class="bd-lab">HI-SCORE</span><b class="bd-title-hi">0</b></div>
+    <div class="bd-hipill"><span class="bd-lab">HI-SCORE</span><b class="bd-title-hi">0</b><span class="bd-hi-mode">NORMAL</span></div>
   </div>
   <div class="bd-title-mid"></div>
   <div class="bd-title-bottom">
@@ -143,6 +143,10 @@ const TITLE_HTML = `
       <li>${ICON_SHOT}<span>ショットは自動</span></li>
       <li>${ICON_GRAZE}<span>弾にかすると得点</span></li>
     </ul>
+    <div class="bd-mode" role="radiogroup" aria-label="難易度">
+      <button class="bd-mode-btn" type="button" role="radio" data-mode="normal"><b>NORMAL</b><span>ノーマル</span></button>
+      <button class="bd-mode-btn" type="button" role="radio" data-mode="hard"><b>HARD</b><span>ハード</span></button>
+    </div>
     <button class="bd-btn bd-start" type="button"><span>タップしてスタート</span></button>
   </div>
   <button class="bd-icon-btn bd-gear" type="button" aria-label="設定">${ICON_GEAR}</button>
@@ -153,7 +157,7 @@ const HUD_HTML = `
     <div class="bd-hud-row">
       <div class="bd-scorebox">
         <div class="bd-score-line"><span class="bd-lab">SCORE</span><b class="bd-score">0</b></div>
-        <div class="bd-hi-line"><span class="bd-lab">HI</span><span class="bd-hi">0</span></div>
+        <div class="bd-hi-line"><span class="bd-lab">HI</span><span class="bd-hi">0</span><span class="bd-mode-tag">HARD</span></div>
       </div>
       <button class="bd-icon-btn bd-pause-btn" type="button" aria-label="ポーズ">${ICON_PAUSE}</button>
     </div>
@@ -224,6 +228,7 @@ const PAUSE_HTML = `
 const RESULT_HTML = `
   <div class="bd-panel bd-result-panel">
     <h2 class="bd-result-title"></h2>
+    <span class="bd-result-mode">NORMAL</span>
     <div class="bd-result-scorebox">
       <span class="bd-lab">SCORE</span>
       <b class="bd-result-score">0</b>
@@ -248,6 +253,7 @@ const TALLY_HTML = `
     <span class="bd-tally-no">STAGE 1</span>
     <b class="bd-tally-title"></b>
     <span class="bd-tally-clear">CLEAR</span>
+    <span class="bd-tally-mul">HARD  SCORE ×1.5</span>
   </div>
   <dl class="bd-tally-rows"></dl>
   <div class="bd-tally-total"><span>TOTAL</span><b class="bd-tally-sum">0</b></div>
@@ -289,6 +295,9 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const sensVal = q(settings, '.bd-sens-val');
   const qualityBtns = Array.from(settings.querySelectorAll<HTMLButtonElement>('.bd-set-quality button'));
   const soundIcons = Array.from(ui.querySelectorAll<HTMLElement>('.bd-sound-icon'));
+  const modeBtns = Array.from(title.querySelectorAll<HTMLButtonElement>('.bd-mode-btn'));
+  const titleHi = q(title, '.bd-title-hi');
+  const titleHiMode = q(title, '.bd-hi-mode');
 
   const sync = () => {
     const s = save.settings;
@@ -305,6 +314,14 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     sensVal.textContent = `${s.sensitivity.toFixed(1)}×`;
     sens.style.setProperty('--p', `${((s.sensitivity - 0.5) / 1.5) * 100}%`);
     for (const b of qualityBtns) b.classList.toggle('is-on', b.dataset.q === s.quality);
+    for (const b of modeBtns) {
+      const on = b.dataset.mode === s.mode;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-checked', String(on));
+    }
+    title.dataset.mode = s.mode;
+    titleHi.textContent = fmt(save.hiScore);
+    titleHiMode.textContent = s.mode === 'hard' ? 'HARD' : 'NORMAL';
   };
 
   const change = (fn: (s: Settings) => void) => {
@@ -335,7 +352,15 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   }
 
   /* ---- title ---- */
-  const titleHi = q(title, '.bd-title-hi');
+  // Mode selector (NORMAL / HARD): saved in settings; the title hi-score follows it.
+  for (const b of modeBtns) {
+    onTap(b, () => {
+      const m = b.dataset.mode as GameMode;
+      if (screen !== 'title' || settings.classList.contains('is-on') || save.settings.mode === m) return;
+      change((s) => (s.mode = m));
+      play(b, [{ transform: 'scale(0.94)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+    });
+  }
   onTap(q(title, '.bd-start'), () => {
     if (screen !== 'title' || settings.classList.contains('is-on')) return;
     cb.onStart();
@@ -372,7 +397,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const hBombs = q(hud, '.bd-bombs');
   const bombBtn = q(hud, '.bd-bomb');
   const bombN = q(hud, '.bd-bomb-n');
-  const prev = { score: -1, hi: -1, graze: -1, lives: -1, slots: 0, boss: false, name: '', pat: '', hp: -1, bombs: -1, power: -1, pp: -1 };
+  const prev = { mode: '' as string, score: -1, hi: -1, graze: -1, lives: -1, slots: 0, boss: false, name: '', pat: '', hp: -1, bombs: -1, power: -1, pp: -1 };
 
   const renderLives = (n: number) => {
     const slots = Math.max(PLAYER.lives, n);
@@ -453,6 +478,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const rTime = q(result, '.bd-r-time');
   const rLives = q(result, '.bd-r-lives');
   const rStages = q(result, '.bd-r-stages');
+  const rMode = q(result, '.bd-result-mode');
   let countRaf = 0;
   let resultAt = 0;
   // Ignore result buttons briefly so a frantic drag/tap at game end doesn't skip the screen.
@@ -472,6 +498,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const tTitle = q(tally, '.bd-tally-title');
   const tRows = q(tally, '.bd-tally-rows');
   const tSum = q(tally, '.bd-tally-sum');
+  const tMul = q(tally, '.bd-tally-mul');
   let tallyRaf = 0;
   const hideTally = () => {
     cancelAnimationFrame(tallyRaf);
@@ -515,6 +542,11 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     },
 
     updateHud(d: HudData) {
+      const mode = d.mode ?? 'normal';
+      if (mode !== prev.mode) {
+        prev.mode = mode;
+        hud.classList.toggle('is-hard', mode === 'hard');
+      }
       if (d.score !== prev.score) {
         prev.score = d.score;
         hScore.textContent = fmt(d.score);
@@ -591,6 +623,9 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
       result.classList.toggle('is-clear', r.cleared);
       result.classList.toggle('is-over', !r.cleared);
       rTitle.textContent = r.allClear ? 'ALL CLEAR' : r.cleared ? 'STAGE CLEAR' : 'GAME OVER';
+      const hard = r.mode === 'hard';
+      result.classList.toggle('is-hard', hard);
+      rMode.textContent = hard ? 'HARD  ハード' : 'NORMAL  ノーマル';
       const st = r.stages ?? [];
       rStages.innerHTML = st
         .map(
@@ -655,6 +690,10 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
       cancelAnimationFrame(tallyRaf);
       tNo.textContent = `STAGE ${d.stage}`;
       tTitle.textContent = d.title + (d.placeholder ? '（仮）' : '');
+      const mul = d.scoreMul ?? 1;
+      tMul.textContent = `${d.mode === 'hard' ? 'HARD  ' : ''}SCORE ×${mul}`;
+      tMul.style.display = mul !== 1 ? '' : 'none';
+      tally.classList.toggle('is-hard', d.mode === 'hard');
       const rows: [string, string, number][] = [
         ['STAGE SCORE', '', d.stageScore],
         ['GRAZE', '', d.graze],
