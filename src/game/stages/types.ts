@@ -38,7 +38,7 @@ export interface Difficulty {
 
 export const DIFFICULTY: Record<GameMode, Difficulty> = {
   normal: { id: 'normal', bullet: 1, enemyHp: 1, bossHp: 1, fireRate: 1, timeout: 1, scoreMul: 1, deathbombSec: 0.25, attract: 1, extraLayers: false },
-  hard: { id: 'hard', bullet: 1.3, enemyHp: 1.2, bossHp: 1.3, fireRate: 0.75, timeout: 1.15, scoreMul: 1.5, deathbombSec: 0.15, attract: 0.85, extraLayers: true },
+  hard: { id: 'hard', bullet: 1.3, enemyHp: 1.2, bossHp: 1.3, fireRate: 0.75, timeout: 1.3, scoreMul: 1.5, deathbombSec: 0.15, attract: 0.85, extraLayers: true },
 };
 
 export function isGameMode(v: unknown): v is GameMode {

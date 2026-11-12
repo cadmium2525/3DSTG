@@ -1210,7 +1210,7 @@
 }
 .bd-record {
   position: absolute;
-  top: calc(var(--u) * -3);
+  top: calc(var(--u) * -0.5);
   right: calc(var(--u) * -2);
   padding: calc(var(--u) * 1) calc(var(--u) * 2.6);
   border-radius: 999px;
