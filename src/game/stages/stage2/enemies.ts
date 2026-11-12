@@ -123,7 +123,7 @@ registerEnemyShape('paperLantern', {
 /** 光蛾: flutters (crown pulse) and sinks slowly while it hovers; 光蛾の鱗粉 volleys. */
 registerEnemyKind('moth', {
   shape: 'moth', hp: 16, score: 250, scale: 1.4, hitRadius: 2.0, color: 0xffa860, coreColor: 0x2c1440,
-  spin: 0.9, spinAxis: 'y', pulse: { speed: 11, amount: 0.24 }, haloScale: 1.0, haloGain: 0.38,
+  spin: 0.9, spinAxis: 'y', pulse: { speed: 11, amount: 0.24 }, haloScale: 1.1, haloGain: 0.2,
   motion: { type: 'drift', vx: 0, vy: -0.42, sway: 1.3 },
   fire: { pattern: 'mothDust', duration: 0.6 },
   drops: { stars: 2, power: 0.5 },
@@ -158,7 +158,7 @@ const tmpW = new THREE.Vector3();
 /** 影の鬼火: erratic hopping wisp of shadow; aimed 鬼火の散弾 every fireEvery. */
 registerEnemyKind('wisp', {
   shape: 'wisp', hp: 22, score: 350, scale: 1.45, hitRadius: 2.1, color: 0x9d6bff, coreColor: 0x1d0c36,
-  spin: 2.2, spinAxis: 'y', pulse: { speed: 8, amount: 0.12 }, haloScale: 1.3, haloGain: 0.75,
+  spin: 2.2, spinAxis: 'y', pulse: { speed: 8, amount: 0.12 }, haloScale: 1.5, haloGain: 0.28,
   trail: { color: 0x8a5cff, every: 0.07, size: 0.5, life: 0.6 },
   motion: {
     type: 'custom',

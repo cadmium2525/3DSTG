@@ -257,7 +257,7 @@ export class Lanterna extends PhasedBoss<LanternaConfig> {
     this.miniMat.onBeforeCompile = (sh) => {
       sh.fragmentShader = sh.fragmentShader.replace(
         '#include <emissivemap_fragment>',
-        '#include <emissivemap_fragment>\n#ifdef USE_INSTANCING_COLOR\n totalEmissiveRadiance *= vColor;\n#endif',
+        '#include <emissivemap_fragment>\n#ifdef USE_COLOR\n totalEmissiveRadiance *= vColor.rgb;\n#endif',
       );
     };
     this.minis = new THREE.InstancedMesh(miniGeo, this.miniMat, MINI);
