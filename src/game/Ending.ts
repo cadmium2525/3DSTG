@@ -6,7 +6,8 @@
  *   ~6 s    the camera swings around over her head to her front while she turns to face it
  *           (the title turn played backwards).
  *   lines   six short lines about light and shadow becoming one, one after another, centred.
- *   ~24 s   the 3D model flashes white and turns back into the original 2D illustration card
+ *   ~6 s    as she turns she flashes white and becomes the original 2D illustration card
+ *   ~24 s   a last sparkle around the illustration
  *           (TitleIntro's card, its 'enter' transformation).
  *   ~26 s   THANK YOU FOR PLAYING → ~33 s the final result (the music is still playing).
  *
@@ -142,12 +143,16 @@ export class LightEnding implements EndingSequence {
   }
 
   /** Camera swings to her front; she turns to face it (the title turn, reversed). */
+  private carded = false;
+
   private turn(): void {
     const c = this.ctx;
     if (this.turned) return;
     this.turned = true;
     if (c.rig) c.rig.mode = 'title';
-    c.player?.setTitlePose();
+    // She becomes the original illustration as she turns, so her face is only ever the 2D art.
+    this.carded = !!c.intro?.beginReturn();
+    if (!this.carded) c.player?.setTitlePose();
     if (c.player && c.effects) {
       const p = c.player.position;
       c.effects.burst(p.x, p.y, p.z, 0xffe6a8, 26, 2.4, 0.06, 1.1);
@@ -160,7 +165,7 @@ export class LightEnding implements EndingSequence {
     const c = this.ctx;
     this.turn();
     if (c.player) c.player.position.set(0, 0, c.player.position.z);
-    c.intro?.showTitle(false);
+    if (!this.carded) c.intro?.showTitle(false);
     if (c.player && c.effects) {
       const p = c.player.position;
       c.effects.burst(p.x, p.y, p.z, 0xffd166, 36, 3.0, 0.07, 1.0);

@@ -71,12 +71,15 @@ void main() {
   gl_FragColor = vec4(c * uAlpha, 1.0);
 }`;
 
-type Phase = 'hidden' | 'card' | 'turnCard' | 'turnModel' | 'enter';
+type Phase = 'hidden' | 'card' | 'turnCard' | 'turnModel' | 'enter' | 'retModel' | 'retCard';
 
 /** Seconds: card spins to edge-on, then the model finishes the turn. */
 const T_CARD = 0.42;
 const T_MODEL = 0.85;
 const T_ENTER = 0.5;
+/** Reverse turn (ending): the model turns away from its back view, then the card settles. */
+const T_RET_MODEL = 0.6;
+const T_RET_CARD = 1.1;
 /** Card turn angle at which the 3D model takes over (before edge-on, so it never vanishes). */
 const SWAP_ANGLE = 1.15;
 
@@ -196,6 +199,18 @@ export class TitleIntro {
     return true;
   }
 
+  /**
+   * Ending: the title turn in reverse. The 3D model (seen from behind) starts to turn
+   * while glowing white and becomes the illustration before its face is ever shown.
+   * Returns false when there is no illustration.
+   */
+  beginReturn(): boolean {
+    if (!this.ready) return false;
+    this.phase = 'retModel';
+    this.t = 0;
+    return true;
+  }
+
   /** Hide immediately (result screen keeps the 3D model). */
   hide(): void {
     this.phase = 'hidden';
@@ -272,6 +287,36 @@ export class TitleIntro {
           this.player.setYaw(0);
           heroine.flash = 0;
           this.phase = 'hidden';
+        }
+        break;
+      }
+      case 'retModel': {
+        const u = Math.min(1, this.t / T_RET_MODEL);
+        // Same angles as the title turn, backwards: back view (0) -> the swap angle.
+        this.player.setYaw(-(Math.PI - SWAP_ANGLE) * easeInOut(u));
+        heroine.flash = Math.min(1, u / 0.55);
+        fxTarget = u;
+        if (u >= 1) {
+          this.phase = 'retCard';
+          this.t = 0;
+          this.effects.burst(p.x, p.y, p.z, PALETTE.gold, 40, 3.2, 0.07, 0.9);
+          this.effects.burst(p.x, p.y, p.z, PALETTE.cyan, 30, 4, 0.06, 0.7);
+          this.effects.ring(p.x, p.y, p.z, PALETTE.white, 1.1, 0.4);
+        }
+        break;
+      }
+      case 'retCard': {
+        const u = Math.min(1, this.t / T_RET_CARD);
+        heroine.flash = 0;
+        modelOn = false;
+        cardOn = true;
+        spin = (1 - easeOut(u)) * SWAP_ANGLE;
+        // Stay white while the camera is still swinging round, then reveal the art.
+        white = 1 - easeInOut(Math.max(0, (u - 0.35) / 0.65));
+        fxTarget = 1;
+        if (u >= 1) {
+          this.player.setYaw(Math.PI);
+          this.phase = 'card';
         }
         break;
       }
