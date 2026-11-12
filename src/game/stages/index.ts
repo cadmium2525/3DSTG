@@ -3,11 +3,13 @@
  * To add / replace a stage, import its def here and put it in the list (docs/ADDING_A_STAGE.md).
  */
 import { hasEnemyKind, hasFormation } from '../enemies/registry';
-import { STAGE2_PLACEHOLDER, STAGE3_PLACEHOLDER } from './placeholders';
+import { STAGE3_PLACEHOLDER } from './placeholders';
 import { STAGE1 } from './stage1';
+import { STAGE2 } from './stage2';
+import { STAGE3 } from './stage3';
 import type { StageDef, StageEvent } from './types';
 
-export const STAGES: readonly StageDef[] = [STAGE1, STAGE2_PLACEHOLDER, STAGE3_PLACEHOLDER];
+export const STAGES: readonly StageDef[] = [STAGE1, STAGE2, STAGE3];
 
 /** 1-based lookup, clamped to the registered range. */
 export function getStage(n: number): StageDef {

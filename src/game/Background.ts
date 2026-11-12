@@ -92,6 +92,13 @@ export interface BackgroundPreset {
   layers?: BackgroundLayerFactory[];
 }
 
+/**
+ * Runtime multipliers on the current preset's darkness amount / lit radius (1 = as the preset
+ * says). Stage 3's final boss drives them (光喰い shrinks the light, the final spell and her
+ * defeat lift the darkness). setPreset() bakes them into the morph start and resets them to 1.
+ */
+export const DARK_MOD = { amount: 1, radius: 1 };
+
 /** Stage 1 「星海」: the original look (purple / cyan / pink / gold on dark space). */
 export const BG_STAR_SEA: BackgroundPreset = {
   clear: PALETTE.bg,
@@ -699,7 +706,7 @@ export class Background {
 
   /** Darkness currently applied (0..1, morphing). */
   get darkness(): number {
-    return this.cur.darkness;
+    return this.cur.darkness * DARK_MOD.amount;
   }
 
   /**
@@ -710,6 +717,9 @@ export class Background {
   setPreset(p: BackgroundPreset, sec = 0): void {
     if (p === this.preset && this.mix >= 1) return;
     this.from.copy(this.cur);
+    this.from.darkness *= DARK_MOD.amount;
+    this.from.darkRadius *= DARK_MOD.radius;
+    DARK_MOD.amount = DARK_MOD.radius = 1;
     this.to.set(p);
     this.preset = p;
     this.mixSec = sec;
@@ -730,7 +740,10 @@ export class Background {
       this.group.add(layer.object3d);
       this.layers.push({ layer, leaving: false });
     }
-    if (this.mix >= 1) this.finishMorph();
+    if (this.mix >= 1) {
+      this.cur.copy(this.to);
+      this.finishMorph();
+    }
     this.apply();
   }
 
@@ -813,10 +826,10 @@ export class Background {
     this.rimB.color.copy(c.rimBColor);
     this.rimB.intensity = c.rimB;
     const du = this.darkMat.uniforms;
-    du.uAmount.value = c.darkness;
-    du.uRadius.value = c.darkRadius;
+    du.uAmount.value = c.darkness * DARK_MOD.amount;
+    du.uRadius.value = c.darkRadius * DARK_MOD.radius;
     du.uColor.value.copy(c.darkColor);
-    this.dark.visible = c.darkness > 0.002;
+    this.dark.visible = du.uAmount.value > 0.002;
     this.streakMat.uniforms.uColor.value.copy(c.streak);
     // Nebula cross-fade (additive: colour scales brightness).
     const k = this.mix * this.mix * (3 - 2 * this.mix);

@@ -74,6 +74,7 @@ uniform sampler2D uMap;
 uniform float uTime;
 uniform float uFlash;
 uniform float uFade;
+uniform float uLight;
 varying vec3 vColor;
 varying vec3 vN;
 varying vec3 vV;
@@ -107,8 +108,13 @@ void main() {
   // Flame tips smoulder.
   col += vec3(0.45, 0.06, 0.4) * pow(vFire, 2.0) * (0.5 + 0.5 * sin(uTime * 6.0 + vFire * 12.0)) * 0.35;
 
+  // Turning to light (her defeat): the shadow fills with warm light from the flame tips inward.
+  float burn = clamp(uLight * 1.6 - (1.0 - vFire) * 0.6, 0.0, 1.0);
+  vec3 lightCol = mix(vec3(1.0, 0.86, 0.6), vec3(1.0, 0.98, 0.92), lit);
+  col = mix(col, lightCol * (0.8 + 0.4 * rim), burn);
+
   col = mix(col, vec3(1.0), uFlash);
-  gl_FragColor = vec4(col * uFade, 1.0);
+  gl_FragColor = vec4(col * uFade, uFade);
   #include <colorspace_fragment>
 }
 `;
@@ -117,13 +123,16 @@ const OUTLINE_FRAG = /* glsl */ `
 uniform float uTime;
 uniform float uFlash;
 uniform float uFade;
+uniform float uLight;
 varying float vFire;
 void main() {
   // Glowing violet-magenta aura hull, flickering on the flame parts.
   float f = 0.6 + 0.4 * sin(uTime * 7.0 + vFire * 9.0);
   vec3 col = mix(vec3(0.10, 0.015, 0.16), vec3(0.75, 0.14, 0.55), pow(vFire, 1.5) * f);
+  // …and gold flames once she turns to light.
+  col = mix(col, mix(vec3(1.0, 0.7, 0.3), vec3(1.0, 0.95, 0.75), pow(vFire, 1.2) * f), clamp(uLight * 1.4, 0.0, 1.0));
   col = mix(col, vec3(1.0), uFlash);
-  gl_FragColor = vec4(col * uFade, 1.0);
+  gl_FragColor = vec4(col * uFade, uFade);
   #include <colorspace_fragment>
 }
 `;
@@ -136,6 +145,8 @@ export class ShadowGirl {
   fade = 1;
   /** Flame strength (raise it in later phases). */
   flame = 1;
+  /** 0 = shadow, 1 = turned to light (her defeat: the flames burn gold, the body fills with light). */
+  light = 0;
 
   private readonly pivot = new THREE.Group();
   private readonly geometry: THREE.BufferGeometry;
@@ -147,8 +158,11 @@ export class ShadowGirl {
     uFlame: { value: number };
     uFlash: { value: number };
     uFade: { value: number };
+    uLight: { value: number };
     uDrift: { value: THREE.Vector3 };
   };
+  private readonly body: THREE.Mesh;
+  private readonly outline: THREE.Mesh;
   private time = 0;
   private sway = 0;
 
@@ -156,7 +170,7 @@ export class ShadowGirl {
    * @param size world height of the figure. The group origin is her chest.
    * She faces +Z (toward the player / camera) by default.
    */
-  constructor(size = PLAYER.modelHeight) {
+  constructor(size: number = PLAYER.modelHeight) {
     this.geometry = buildHeroineGeometry();
     this.faceTexture = createFaceTexture(SHADOW_FACE);
     this.uniforms = {
@@ -164,6 +178,7 @@ export class ShadowGirl {
       uFlame: { value: 1 },
       uFlash: { value: 0 },
       uFade: { value: 1 },
+      uLight: { value: 0 },
       uDrift: { value: new THREE.Vector3() },
     };
     this.material = new THREE.ShaderMaterial({
@@ -182,6 +197,8 @@ export class ShadowGirl {
     const outline = new THREE.Mesh(this.geometry, this.outlineMaterial);
     body.frustumCulled = outline.frustumCulled = false;
     outline.renderOrder = -1;
+    this.body = body;
+    this.outline = outline;
 
     const rig = new THREE.Group();
     rig.scale.setScalar(size);
@@ -189,6 +206,19 @@ export class ShadowGirl {
     rig.add(outline, body);
     this.pivot.add(rig);
     this.group.add(this.pivot);
+  }
+
+  /**
+   * Draw in the transparent pass at this renderOrder (e.g. 3 = above stage 3's darkness overlay
+   * at 2.5, so the boss stays fully visible). Fade then also becomes real transparency.
+   */
+  setRenderOrder(order: number): void {
+    for (const m of [this.material, this.outlineMaterial]) {
+      m.transparent = true;
+      m.needsUpdate = true;
+    }
+    this.outline.renderOrder = order;
+    this.body.renderOrder = order + 0.01;
   }
 
   /** @param vx normalised lateral motion -1..1 for lean and hair drift. */
@@ -201,6 +231,7 @@ export class ShadowGirl {
     u.uFlame.value = this.flame;
     u.uFlash.value = Math.min(1, this.flash);
     u.uFade.value = this.fade;
+    u.uLight.value = this.light;
     u.uDrift.value.set(-this.sway * 0.06, 0.01, 0);
     // Hovering, slightly menacing idle.
     this.pivot.position.y = Math.sin(this.time * 1.3) * 0.04;

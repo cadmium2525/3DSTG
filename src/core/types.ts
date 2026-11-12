@@ -17,6 +17,28 @@ export type PatternId =
   | 'aimedBurst' // simple aimed shots for small enemies
   | 'wingSweep' // 胡蝶の羽ばたき: mirrored wing-edge walls sweeping in/out, thread the drifting gap (mid-boss)
   | 'cometTrail' // 彗星の尾: slow single bullets landing along a streaking comet's on-screen path (stage 1 enemy)
+  // --- stage 2 「黄昏の境界」 (src/danmaku/stage2.ts; warm + shadow bullets) ---
+  | 'mothDust' // 光蛾の鱗粉: aimed 3-way + a straddling follow-up pair (moth)
+  | 'wispSpread' // 鬼火の散弾: bowed aimed spread of shadow bullets (wisp)
+  | 'shardRing' // 夕陽の欠片: small ring(s) where a sunset shard bursts
+  | 'lanternDrift' // 灯籠流し: slow lanterns that burst mid-flight into slow rings (mid-boss ランテルナ)
+  | 'flickerCurtain' // 揺らぐ灯: wavering curtains, lit / unlit waves land in each other's gaps (mid-boss)
+  | 'coronaRays' // 日輪の光条: rotating corona spokes, rotation breathes and reverses (boss エクリプス)
+  | 'twilightLattice' // 黄昏の格子: light lattice then shadow lattice on its holes (boss)
+  | 'crescentSweep' // 蝕の三日月: filled crescents orbiting the field, waxing and waning (boss)
+  | 'totalEclipse' // 皆既日蝕: moon disc on the player, then corona rings burst outward (boss final)
+  // --- stage 3 「深淵」 (src/danmaku/stage3.ts; dark bullets) ---
+  | 'shadowShot' // 影の礫: aimed fan of dark bullets (shadow shards)
+  | 'shadowGrasp' // 影の手: claw of finger lines reaching in from the hand's edge, slip between fingers
+  | 'shadowBloom' // 影の花: small dark petal bloom at the mirror image of the flower's position
+  | 'shadowSlash' // 影の剣閃: blade arcs swept across the field, cross behind the blade (mid-boss ノクス)
+  | 'blackShield' // 黒鎧の陣: rotating rings of shield plates (mid-boss ノクス)
+  | 'shadowMimic' // 影の模倣: the heroine's shot fan as dark needle lanes that track her (boss)
+  | 'shadowEcho' // 写し身の弾幕: stage-1 patterns replayed mirrored in shadow colours (boss)
+  | 'shadowBarrier' // 影の結界: hexagon shells closing in, then a honeycomb seal (boss)
+  | 'lightEater' // 光喰い: dark spiral arms turning around a hub that follows her (boss)
+  | 'lightShadowHelix' // 光と影の螺旋: counter-curled light and shadow arms, a rotating lattice (final spell)
+  | 'shadowProbe' // (internal) never fires; lets the shadow girl know where the heroine is
   | 'jellyRing'; // 星海月の輪: one small ring around the player (stage 1 enemy)
 
 export const PATTERN_NAMES: Record<PatternId, string> = {
@@ -27,6 +49,26 @@ export const PATTERN_NAMES: Record<PatternId, string> = {
   aimedBurst: '狙い弾',
   wingSweep: '胡蝶の羽ばたき',
   cometTrail: '彗星の尾',
+  mothDust: '光蛾の鱗粉',
+  wispSpread: '鬼火の散弾',
+  shardRing: '夕陽の欠片',
+  lanternDrift: '灯籠流し',
+  flickerCurtain: '揺らぐ灯',
+  coronaRays: '日輪の光条',
+  twilightLattice: '黄昏の格子',
+  crescentSweep: '蝕の三日月',
+  totalEclipse: '皆既日蝕',
+  shadowShot: '影の礫',
+  shadowGrasp: '影の手',
+  shadowBloom: '影の花',
+  shadowSlash: '影の剣閃',
+  blackShield: '黒鎧の陣',
+  shadowMimic: '影の模倣',
+  shadowEcho: '写し身の弾幕',
+  shadowBarrier: '影の結界',
+  lightEater: '光喰い',
+  lightShadowHelix: '光と影の螺旋',
+  shadowProbe: '',
   jellyRing: '星海月の輪',
 };
 

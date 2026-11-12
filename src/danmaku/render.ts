@@ -7,7 +7,7 @@ import { BULLET, FIELD } from '../core/config';
 import { POP_TIME, type BulletPool } from './pool';
 
 const BULLET_VS = /* glsl */ `
-attribute vec4 aPos;   // xyz, world radius
+attribute vec4 aPos;   // xyz, world radius (negative = dark bullet)
 attribute vec4 aCol;   // rgb, alpha
 uniform float uPxWorld; // world size of one pixel at view distance 1
 uniform float uHalo;
@@ -15,13 +15,15 @@ varying vec2 vUv;
 varying vec3 vCol;
 varying float vAlpha;
 varying float vNear;
+varying float vDark;
 void main() {
+  vDark = step(aPos.w, 0.0);
   float z = aPos.z;
   float near = smoothstep(-36.0, -1.0, z);           // 0 far .. 1 at the play plane
   float fogIn = smoothstep(${(FIELD.enemyZ - 22).toFixed(1)}, ${(FIELD.enemyZ + 12).toFixed(1)}, z);
   float behind = 1.0 - smoothstep(0.05, 1.1, z);      // fade once past the player
   vec4 mv = modelViewMatrix * vec4(aPos.xyz, 1.0);
-  float r = aPos.w * (0.88 + 0.14 * near);
+  float r = abs(aPos.w) * (0.88 + 0.14 * near);
   float minR = 1.7 * uPxWorld * -mv.z;               // never smaller than ~1.7px
   float rr = max(r, minR);
   mv.xy += position.xy * 2.0 * rr * uHalo;
@@ -39,16 +41,32 @@ varying vec2 vUv;
 varying vec3 vCol;
 varying float vAlpha;
 varying float vNear;
+varying float vDark;
 void main() {
   float d = length(vUv);
   if (d > uHalo) discard;
+  if (vDark > 0.5) {
+    // Dark bullet (stage 3): a near-black core (hides what is behind it) inside a thin glowing
+    // ring in the bullet colour and a soft outer glow, so it reads on black and on bright fx.
+    float disc = smoothstep(0.9, 0.74, d);
+    float ring = exp(-pow((d - 0.86) * 9.0, 2.0));
+    float glint = exp(-pow((d - 0.5) * 12.0, 2.0)) * 0.16;
+    float outer = exp(-d * d * 1.3) * (1.0 - d / uHalo) * smoothstep(0.75, 1.05, d);
+    vec3 add = vCol * (ring * (0.85 + 0.75 * vNear) + glint + outer * (0.45 + 0.4 * vNear))
+             + vec3(1.0) * ring * ring * (0.08 + 0.4 * vNear * vNear);
+    float a = disc * 0.92 * vAlpha;
+    vec3 core = vCol * 0.05 + vec3(0.012, 0.004, 0.02);
+    gl_FragColor = vec4(core * a + add * vAlpha, a);
+    return;
+  }
   float core = smoothstep(0.56, 0.26, d);             // white-hot core ~ hit radius
   float body = smoothstep(1.0, 0.72, d);              // coloured orb
   float rim = exp(-pow((d - 0.84) * 7.0, 2.0));       // thin bright rim
   float halo = exp(-d * d * 1.5) * (1.0 - d / uHalo);
   vec3 c = vCol * (body * 0.6 + rim * 0.5 + halo * (0.3 + 0.35 * vNear))
          + vec3(1.0) * core * (0.1 + 1.0 * vNear * vNear);
-  gl_FragColor = vec4(c, vAlpha);
+  // Premultiplied output with alpha 0 = exactly the old additive blend (dst + c·alpha).
+  gl_FragColor = vec4(c * vAlpha, 0.0);
 }`;
 
 const MARK_VS = /* glsl */ `
@@ -128,7 +146,14 @@ export class DanmakuRenderer {
       transparent: true,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      // Premultiplied "over": normal bullets write alpha 0 (= additive, unchanged look),
+      // dark bullets write their core coverage as alpha (darken what is behind them).
+      blending: THREE.CustomBlending,
+      blendEquation: THREE.AddEquation,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneMinusSrcAlphaFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
     });
     this.bullets = new THREE.InstancedMesh(this.bGeo, this.bMat, cap);
     this.bullets.frustumCulled = false;
@@ -194,7 +219,7 @@ export class DanmakuRenderer {
         size *= 1 + 1.4 * k;
         alpha *= (1 - k) * (1 - k) * 1.4;
       }
-      bp[o] = pool.x[i]; bp[o + 1] = pool.y[i]; bp[o + 2] = pool.z[i]; bp[o + 3] = size;
+      bp[o] = pool.x[i]; bp[o + 1] = pool.y[i]; bp[o + 2] = pool.z[i]; bp[o + 3] = pool.dark[i] ? -size : size;
       bc[o] = pool.cr[i]; bc[o + 1] = pool.cg[i]; bc[o + 2] = pool.cb[i]; bc[o + 3] = alpha;
 
       // Approach marker at the predicted crossing point.

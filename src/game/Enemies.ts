@@ -147,7 +147,8 @@ export class Enemies {
     });
     this.halo = new THREE.InstancedMesh(new THREE.PlaneGeometry(4.2, 4.2), haloMat, MAX_ENEMIES);
     this.prepMesh(this.halo);
-    this.halo.renderOrder = 2;
+    // Above the stage-3 darkness overlay (2.5): enemies' glow shows through the dark, their bodies don't.
+    this.halo.renderOrder = 3;
     for (const id of enemyShapes().keys()) this.meshesFor(id);
   }
 

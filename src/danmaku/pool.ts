@@ -39,12 +39,18 @@ export interface SpawnParams {
   r: number;
   g: number;
   b: number;
+  /**
+   * 1 = "dark bullet" (stage 3 shadow bullets): drawn with a dark core and a bright rim in the
+   * colour (r, g, b) instead of a glowing orb. Optional / default 0 — emitters that set it must
+   * reset it to 0 when they are done (the scratch SpawnParams is shared by every emitter).
+   */
+  dark?: number;
 }
 
 export function makeSpawnParams(): SpawnParams {
   return {
     ox: 0, oy: 0, oz: FIELD.enemyZ, cx: 0, cy: 0, r0: 0, r1: 0, ep: 1, th1: 0, om: 0,
-    T: 3.8, accel: 2, age: 0, size: 1, r: 1, g: 1, b: 1,
+    T: 3.8, accel: 2, age: 0, size: 1, r: 1, g: 1, b: 1, dark: 0,
   };
 }
 
@@ -79,6 +85,8 @@ export class BulletPool {
   readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array;
   readonly px: Float32Array; readonly py: Float32Array; readonly pz: Float32Array;
   readonly flags: Uint8Array;
+  /** 1 = dark bullet (render only). */
+  readonly dark: Uint8Array;
   private readonly arrays: (Float32Array | Uint8Array)[];
 
   constructor(cap: number = BULLET.max) {
@@ -90,10 +98,11 @@ export class BulletPool {
     this.age = f(); this.pop = f(); this.size = f(); this.cr = f(); this.cg = f(); this.cb = f();
     this.x = f(); this.y = f(); this.z = f(); this.px = f(); this.py = f(); this.pz = f();
     this.flags = new Uint8Array(cap);
+    this.dark = new Uint8Array(cap);
     this.arrays = [
       this.ox, this.oy, this.oz, this.cx, this.cy, this.r0, this.r1, this.ep, this.th1, this.om,
       this.T, this.v0, this.az, this.tx, this.ty, this.age, this.pop, this.size, this.cr, this.cg,
-      this.cb, this.x, this.y, this.z, this.px, this.py, this.pz, this.flags,
+      this.cb, this.x, this.y, this.z, this.px, this.py, this.pz, this.flags, this.dark,
     ];
   }
 
@@ -122,6 +131,7 @@ export class BulletPool {
     this.age[i] = p.age; this.pop[i] = 0;
     this.size[i] = p.size; this.cr[i] = p.r; this.cg[i] = p.g; this.cb[i] = p.b;
     this.flags[i] = 0;
+    this.dark[i] = p.dark ? 1 : 0;
     this.evalPos(i);
     this.px[i] = this.x[i]; this.py[i] = this.y[i]; this.pz[i] = this.z[i];
     return i;

@@ -11,10 +11,11 @@ import { CAMERA, FIELD, PALETTE, PLAYER } from '../src/core/config';
 import { PATTERN_NAMES, type PatternId } from '../src/core/types';
 import { createDanmakuWithSim } from '../src/danmaku/index';
 import { bossOrigin, DodgeBot, runFairness } from '../src/danmaku/bot';
+import { STAGE2_PATTERNS } from '../src/danmaku/stage2';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
-const ALL: PatternId[] = ['spiralCorridor', 'petalBloom', 'rippleRing', 'constellationRain', 'aimedBurst', 'wingSweep', 'cometTrail', 'jellyRing'];
+const ALL: PatternId[] = ['spiralCorridor', 'petalBloom', 'rippleRing', 'constellationRain', 'aimedBurst', 'wingSweep', 'cometTrail', 'jellyRing', ...STAGE2_PATTERNS];
 
 if (q.get('fairness') === '1') {
   const out = document.getElementById('out')!;

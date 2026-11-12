@@ -464,7 +464,7 @@ export class Game {
     this.phase = 'ending';
     this.phaseT = 0;
     this.ui.hideStageClear();
-    this.ending = createEnding({ ui: this.ui, audio: this.audio, bg: this.bg });
+    this.ending = createEnding({ ui: this.ui, audio: this.audio, bg: this.bg, player: this.player, rig: this.rig, intro: this.intro, effects: this.effects });
     this.ending.start();
   }
 
@@ -498,6 +498,7 @@ export class Game {
         break;
       case 'ending':
         if (!this.ending || this.ending.update(dt)) {
+          this.ending?.dispose?.();
           this.ending = null;
           this.showResult(true);
         }
@@ -518,6 +519,7 @@ export class Game {
     this.shots.clear();
     this.items.clear();
     this.bomb.reset();
+    this.ending?.dispose?.();
     this.ending = null;
     this.bannerT = -1;
     this.ui?.hideStageClear();
@@ -648,11 +650,13 @@ export class Game {
     this.clearWorld();
     this.state = 'result';
     this.rig.mode = 'title';
-    this.intro.hide();
+    // After the ending she stays the illustration it turned her into.
+    if (allClear) this.intro.showTitle(true);
+    else this.intro.hide();
     p.setTitlePose();
     p.alive = true;
     p.invincible = 0;
-    this.audio.stopBgm();
+    if (!allClear) this.audio.stopBgm(); // the one-shot ending theme plays on under the result
     this.sfx(allClear ? 'clear' : 'gameOver');
     this.pushHud();
     this.ui.showResult({
@@ -904,7 +908,7 @@ export class Game {
     const settings = this.save.settings;
     const playing = this.state === 'playing';
     const fighting = this.phase === 'stage' || this.phase === 'boss';
-    const control = playing && !this.intro.busy && this.phase !== 'dying';
+    const control = playing && !this.intro.busy && this.phase !== 'dying' && this.phase !== 'ending';
     const slow = settings.slowMode || this.input.slowHeld;
 
     // Input -> movement.
@@ -918,7 +922,7 @@ export class Game {
       p.position.y += (0 - p.position.y) * k;
       p.titleIdle(this.time);
     }
-    p.update(dt, this.drag.x * scale, -this.drag.y * scale, this.input.keyAxisX(), this.input.keyAxisY(), slow && playing, control, playing && this.playTime > 0.6 && !this.intro.busy);
+    p.update(dt, this.drag.x * scale, -this.drag.y * scale, this.input.keyAxisX(), this.input.keyAxisY(), slow && playing, control, playing && this.playTime > 0.6 && !this.intro.busy && this.phase !== 'ending');
 
     if (playing) {
       this.playTime += dt;
@@ -977,7 +981,7 @@ export class Game {
     this.bg.setFramesOpacity(this.rig.mode === 'play' && this.state === 'playing' ? 1 : 0);
     // (state may have changed during this update, e.g. the result screen just opened)
     const stillPlaying = this.state === 'playing';
-    if (stillPlaying && this.rig.mode === 'title' && this.intro.releaseCamera) this.rig.mode = 'play';
+    if (stillPlaying && this.rig.mode === 'title' && this.intro.releaseCamera && this.phase !== 'ending') this.rig.mode = 'play';
     if (stillPlaying && this.intro.busy) p.position.y += (-0.8 - p.position.y) * (1 - Math.exp(-dt * 4));
     this.rig.update(dt, p.position, p.vx);
     // Darkness overlay follows the heroine on screen.
@@ -1138,6 +1142,7 @@ export class Game {
     this.danmaku.stopAllPatterns();
     this.danmaku.clear();
     this.enemies.clear();
+    this.ending?.dispose?.();
     this.ending = null;
     this.ui.hideStageClear();
     this.beginStage(N, false);
