@@ -192,7 +192,18 @@ export type SfxName =
   | 'powerUp'
   | 'bomb';
 
-export type BgmTrack = 'title' | 'stage' | 'midboss' | 'boss';
+export type BgmTrack =
+  | 'title'
+  | 'stage'
+  | 'midboss'
+  | 'boss'
+  | 'stage2'
+  | 'midboss2'
+  | 'boss2'
+  | 'stage3'
+  | 'midboss3'
+  | 'boss3'
+  | 'ending';
 
 export interface AudioEngine {
   /** Must be called from a user gesture; safe to call repeatedly. */
