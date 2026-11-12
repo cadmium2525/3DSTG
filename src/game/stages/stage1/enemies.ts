@@ -116,9 +116,9 @@ registerEnemyKind('lantern', {
 
 /** 彗星: streaks across in `stay` seconds; its slow trail bullets land along its path. */
 registerEnemyKind('comet', {
-  shape: 'comet', hp: 9, score: 300, scale: 1.35, hitRadius: 2.0, color: 0x9ff4ff, coreColor: 0xf4fbff,
-  spin: 5, faceMotion: true, haloScale: 0.85, haloGain: 0.55,
-  trail: { color: 0xbff6ff, every: 0.035, size: 0.55, life: 0.7 },
+  shape: 'comet', hp: 20, score: 300, scale: 1.8, hitRadius: 2.2, color: 0x9ff4ff, coreColor: 0xf4fbff,
+  spin: 5, faceMotion: true, haloScale: 1.0, haloGain: 0.7,
+  trail: { color: 0xbff6ff, every: 0.025, size: 0.8, life: 0.9 },
   motion: { type: 'path', arc: 1.2 },
   fire: { pattern: 'cometTrail', continuous: true, firstDelay: 0.55 },
   drops: { stars: 3, power: 0.4 },

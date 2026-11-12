@@ -1,6 +1,6 @@
 /**
  * Stage 1 「星海」 — bright star sea, gentle difficulty (the user is happy with an easy first stage).
- * Road ≈ 34 s → mid-boss 硝子蝶 ルクシア → road ≈ 23 s → WARNING → boss 星環の花冠 アストルム.
+ * Road ≈ 36 s (with a short lull) → mid-boss 硝子蝶 ルクシア → road ≈ 23 s → WARNING → boss 星環の花冠 アストルム.
  * About 100–120 s when played well.
  */
 import { BG_STAR_SEA } from '../../Background';
@@ -24,25 +24,25 @@ export const STAGE1_EVENTS: StageEvent[] = [
   { t: 22.6, type: 'intro', pattern: 'constellationRain', duration: 5.0, intensity: 0.25, sub: '星の線を見切れ' },
   { t: 24.0, type: 'wave', formation: 'line', kind: 'crystal', count: 5, side: 1, stay: 3.5, fireEvery: 1.6, intensity: 0.36 },
   // --- lull: a shower of shooting stars, peaceful jellyfish drifting up (they never fire) ---
-  { t: 28.2, type: 'scenery', name: 'starfall', duration: 5.5 },
-  { t: 28.6, type: 'wave', formation: 'low', kind: 'jelly', count: 4, side: 0, stay: 4.2, fireEvery: 99, intensity: 0.3, quiet: true, delayStep: 0.4 },
+  { t: 30.6, type: 'scenery', name: 'starfall', duration: 5.5 },
+  { t: 31.0, type: 'wave', formation: 'low', kind: 'jelly', count: 4, side: 0, stay: 4.2, fireEvery: 99, intensity: 0.3, quiet: true, delayStep: 0.4 },
   // Mid-boss: stage time stops here until it is defeated or flies away.
-  { t: 34.0, type: 'midboss' },
+  { t: 36.0, type: 'midboss' },
   // --- second half: denser mixes ---
-  { t: 35.2, type: 'wave', formation: 'v', kind: 'petal', count: 7, side: 0, stay: 3.5, fireEvery: 1.4, intensity: 0.4 },
-  { t: 37.0, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 3.0, fireEvery: 0, intensity: 0.36, delayStep: 0.9 },
-  { t: 38.6, type: 'wave', formation: 'sides', kind: 'turret', count: 4, side: 0, stay: 5.0, fireEvery: 1.9, intensity: 0.32, y: 3.4, delayStep: 0.3 },
-  { t: 41.6, type: 'wave', formation: 'columns', kind: 'crystal', count: 6, side: -1, stay: 3.0, fireEvery: 1.4, intensity: 0.42 },
-  { t: 44.4, type: 'wave', formation: 'low', kind: 'jelly', count: 3, side: 0, stay: 4.5, fireEvery: 2.4, intensity: 0.38, x: 1.5 },
-  { t: 45.6, type: 'wave', formation: 'diagonal', kind: 'comet', count: 3, side: 0, stay: 3.0, fireEvery: 0, intensity: 0.38, x: 1, delayStep: 0.5 },
-  { t: 47.8, type: 'wave', formation: 'arc', kind: 'crystal', count: 7, side: 0, stay: 3.0, fireEvery: 1.3, intensity: 0.44 },
+  { t: 37.2, type: 'wave', formation: 'v', kind: 'petal', count: 7, side: 0, stay: 3.5, fireEvery: 1.4, intensity: 0.4 },
+  { t: 39.0, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 3.0, fireEvery: 0, intensity: 0.36, delayStep: 0.9 },
+  { t: 40.6, type: 'wave', formation: 'sides', kind: 'turret', count: 4, side: 0, stay: 5.0, fireEvery: 1.9, intensity: 0.32, y: 3.4, delayStep: 0.3 },
+  { t: 43.6, type: 'wave', formation: 'columns', kind: 'crystal', count: 6, side: -1, stay: 3.0, fireEvery: 1.4, intensity: 0.42 },
+  { t: 46.4, type: 'wave', formation: 'low', kind: 'jelly', count: 3, side: 0, stay: 4.5, fireEvery: 2.4, intensity: 0.38, x: 1.5 },
+  { t: 47.6, type: 'wave', formation: 'diagonal', kind: 'comet', count: 3, side: 0, stay: 3.0, fireEvery: 0, intensity: 0.38, x: 1, delayStep: 0.5 },
+  { t: 49.8, type: 'wave', formation: 'arc', kind: 'crystal', count: 7, side: 0, stay: 3.0, fireEvery: 1.3, intensity: 0.44 },
   // --- the push right before WARNING: petals from both sides, a turret pair, a comet pair ---
-  { t: 51.2, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: -1, stay: 3.4, fireEvery: 1.5, intensity: 0.4 },
-  { t: 51.9, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: 1, stay: 3.0, fireEvery: 1.5, intensity: 0.4 },
-  { t: 52.6, type: 'wave', formation: 'sides', kind: 'turret', count: 2, side: 0, stay: 3.6, fireEvery: 1.7, intensity: 0.34, y: 1.2 },
-  { t: 53.6, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 2.9, fireEvery: 0, intensity: 0.4, delayStep: 0.35 },
-  { t: 58.0, type: 'warning' },
-  { t: 61.0, type: 'boss' },
+  { t: 53.2, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: -1, stay: 3.4, fireEvery: 1.5, intensity: 0.4 },
+  { t: 53.9, type: 'wave', formation: 'line', kind: 'petal', count: 6, side: 1, stay: 3.0, fireEvery: 1.5, intensity: 0.4 },
+  { t: 54.6, type: 'wave', formation: 'sides', kind: 'turret', count: 2, side: 0, stay: 3.6, fireEvery: 1.7, intensity: 0.34, y: 1.2 },
+  { t: 55.6, type: 'wave', formation: 'diagonal', kind: 'comet', count: 2, side: 0, stay: 2.9, fireEvery: 0, intensity: 0.4, delayStep: 0.35 },
+  { t: 60.0, type: 'warning' },
+  { t: 63.0, type: 'boss' },
 ];
 
 export const STAGE1_MIDBOSS: LuxiaConfig = {

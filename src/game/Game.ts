@@ -974,9 +974,11 @@ export class Game {
       else speed = 1;
     }
     this.bg.setSpeed(speed);
-    this.bg.setFramesOpacity(this.rig.mode === 'play' ? 1 : 0);
-    if (playing && this.rig.mode === 'title' && this.intro.releaseCamera) this.rig.mode = 'play';
-    if (playing && this.intro.busy) p.position.y += (-0.8 - p.position.y) * (1 - Math.exp(-dt * 4));
+    this.bg.setFramesOpacity(this.rig.mode === 'play' && this.state === 'playing' ? 1 : 0);
+    // (state may have changed during this update, e.g. the result screen just opened)
+    const stillPlaying = this.state === 'playing';
+    if (stillPlaying && this.rig.mode === 'title' && this.intro.releaseCamera) this.rig.mode = 'play';
+    if (stillPlaying && this.intro.busy) p.position.y += (-0.8 - p.position.y) * (1 - Math.exp(-dt * 4));
     this.rig.update(dt, p.position, p.vx);
     // Darkness overlay follows the heroine on screen.
     this.lightV.copy(p.position).project(this.rig.camera);
@@ -1089,6 +1091,13 @@ export class Game {
       quality: this.quality.level,
       player: { x: Math.round(this.player.position.x * 1000) / 1000, y: Math.round(this.player.position.y * 1000) / 1000 },
     };
+  }
+
+  /** Debug / tests: simulate `sec` seconds at 60 Hz without rendering (fast-forward). */
+  advance(sec: number): void {
+    const n = Math.max(0, Math.round(sec * 60));
+    for (let i = 0; i < n && this.state !== 'paused'; i++) this.update(1 / 60);
+    this.needsRender = true;
   }
 
   /** Debug: drop items as if an enemy died at (x, y, z) (default: ahead, mid-depth). */

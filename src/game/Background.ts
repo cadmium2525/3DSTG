@@ -251,7 +251,7 @@ void main() {
   float r = length(d);
   // Breathing light edge; soft falloff from the lit core to full darkness.
   float rad = uRadius * (1.0 + 0.04 * sin(uTime * 1.7));
-  float a = smoothstep(rad * 0.55, rad * 1.9, r);
+  float a = smoothstep(rad * 0.6, rad * 1.7, r);
   // Corners darkest.
   a = mix(a, 1.0, smoothstep(0.75, 1.25, length(vNdc)) * 0.35);
   gl_FragColor = vec4(uColor, clamp(a * uAmount, 0.0, 1.0));

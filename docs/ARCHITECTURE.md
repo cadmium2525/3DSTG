@@ -19,9 +19,36 @@ X=左右 / Y=上下 / Z=奥行き。自機は操作平面 `z=0` 上を動き `-Z
 | `src/game/`, `src/main.ts` | ループ、カメラ、入力、自機、ショット（パワー Lv1〜4）、アイテム、ボム、敵、中ボス、ボス、タイトル演出、ステージ進行、背景、品質自動調整 | — |
 | `src/ui/`, `src/audio/`, `src/save.ts` | DOM HUD・タイトル・リザルト・ポーズ、Web Audio で BGM/SE ファイル再生、localStorage | `createUI()`, `createAudio()`, `createSaveStore()` |
 
-## 1プレイの流れ（60〜90秒）
-タイトル → 道中(約25〜30秒: 小型敵 + 狙い弾、波紋リング/星座の雨を単体で紹介)
-→ ボス(螺旋回廊 → 花弁の開花 → 波紋リング+星座の雨、HP かタイムアウトで移行) → リザルト → 再挑戦。
+## ステージ構成（全3面・データ駆動）— 詳細は `docs/STAGES.md`、追加手順は `docs/ADDING_A_STAGE.md`
+```
+src/game/
+  Game.ts            ループ・状態機械・面の流れ（StageDef を読むだけ。面ごとの分岐は書かない）
+  Stage.ts           1面分のイベントタイムラインを進める
+  StageData.ts       全面共通の調整値（SCORE / SHOT / POWER / ITEMS / BOMB）
+  Background.ts      BackgroundPreset で動く背景（星・塵・星雲・トンネル枠・ライト・霧・流れ星・闇の覆い）。setPreset(p, 秒) でモーフ
+  Enemies.ts         雑魚の実行系（入退場・移動スクリプト・射撃・インスタンス描画）
+  enemies/registry.ts  雑魚の形（registerEnemyShape）・種類（registerEnemyKind）・編隊（registerFormation）
+  enemies/builtin.ts   共通の形 'flower'
+  bosses/BossLike.ts   ボス／中ボスの差し替え口（BossLike / BossConfig / BossEvents / defineBoss）
+  bosses/PhasedBoss.ts フェーズ進行の基底クラス（見た目と動きだけ実装すればよい）
+  Ending.ts          エンディングの差し込み口（今は仮の PlaceholderEnding）
+  stages/types.ts    StageDef・タイムラインイベント・Difficulty
+  stages/index.ts    面の登録順 STAGES と検証
+  stages/stage1/     1面「星海」: index.ts（タイムライン・中ボス/ボス設定）, enemies.ts, AstrumBoss.ts, LuxiaMidBoss.ts
+  stages/placeholders.ts  2面・3面の仮定義（1面の中身＋本来のタイトル・BGM・背景）。各面の担当が差し替える
+```
+- 流れ：タイトル → 1面 →（ボス撃破/時間切れ）clearing 3 秒 → **集計**（tally 4.6 秒：面スコア・グレイズ・アイテム・
+  ボーナス = 1万×面番号 + 残機×1万 + ノーミス2万）→ **移動**（transition 3.6 秒：背景が次の面へモーフ、加速、
+  「STAGE 2 黄昏の境界」）→ 2面 → … → 3面の集計 → **ending**（`EndingSequence`、今は仮バナー）→ 総合リザルト
+  （ALL CLEAR・面ごとの内訳・NEW RECORD）。途中でゲームオーバーなら従来どおりリザルト（到達面までの内訳）。
+- 残機・ボム・パワーは持ち越し。もう一度＝1面から。ハイスコアは通算1本。
+- 難易度フック：`Difficulty { bullet, enemyHp, bossHp }`（normal = 1）。全パターン強度・雑魚 HP・ボス HP に掛かる。`game.setDifficulty(d)`。
+- 闇（3面）：`BackgroundPreset.darkness / darkRadius`。全画面の覆い（renderOrder 2.5）で、背景・敵・ボス（≦2）は暗く、
+  自機ショット・エフェクト・弾・アイテム・自機マーカーは覆いの上に描かれる。主人公の周りだけ明るい。
+
+## 1面「星海」（約 100〜120 秒）
+道中 約36秒（花弁・水晶 + 新しい雑魚 彗星/星海月/水晶砲台、波紋リング・星座の雨の紹介、流れ星の「凪」）→ 中ボス ルクシア
+→ 道中 約24秒（混成、WARNING 直前に左右からの花弁＋砲台＋彗星）→ WARNING → ボス アストルム（螺旋回廊 → 花弁の開花 → 波紋リング+星座の雨）。
 
 ## アイテム・ショットパワー・ボム（光の少女の力 = 光：白・金・シアン）
 - **アイテム**（`src/game/Items.ts`、1 つの InstancedMesh のビルボード、プール 384、毎フレーム確保なし）
@@ -30,7 +57,7 @@ X=左右 / Y=上下 / Z=奥行き。自機は操作平面 `z=0` 上を動き `-Z
   - 光の玉（パワー）：白い芯＋金のリング＋回転する十字の光芒、ゆっくり上下、光の粒の尾。敵弾（丸い玉）と形が違う。
   - 動き：撃破地点（z≈-40〜-60）から放物線を描いて操作平面 z=0 の場の中ほどへ 1〜1.4 秒で着地（減速しながら到着）→ ゆっくり下へ流れ 6.5 秒で消える。
     自機の半径 1.9（低速 2.8）以内・自機が上部（y>2.2）にいる間・マグネット中（ボム、フェーズ撃破、ステージクリア）は自機へ誘導。取得半径 0.62。
-  - ドロップ：`ITEMS.drops`（小型 2〜3 個の星＋0.5〜0.6 個の玉を端数繰り越し、ランタン 8＋4）、ボスのフェーズ撃破 12＋4、中ボスのフェーズ撃破 8＋3、中ボス撃破 16＋10（直接吸い込み）。
+  - ドロップ：雑魚の種類ごとの `EnemyKindDef.drops`（小型 2〜4 個の星＋0.4〜1 個の玉を端数繰り越し、ランタン 8＋4）、ボスのフェーズ撃破 12＋4、中ボスのフェーズ撃破 8＋3、中ボス撃破 16＋10（直接吸い込み）。
 - **ショットパワー**（`SHOT_LEVELS` / `POWER`）：Lv1→2→3→4 に玉 8/12/16 個。Lv1 2 本（従来と同じ DPS 28）、Lv2 3 本 ×1.2、Lv3 4 本（外側は金色の拡散）×1.4、Lv4 5 本 ×1.65。自動照準はそのまま。
   ボス/中ボスの HP は ×1.3 / ×1.075（ボスは Lv3 で従来とほぼ同じ長さ、Lv1 でも各フェーズを時間内に削れる）。ミスで玉 12 個分を失い（Lv1 未満にはならない）、5 個が飛び散って拾い直せる。最大時の玉は 1000 点。
 - **ボム「光の結界」**（`src/game/Bomb.ts`、`BOMB`）：右下の丸ボタン（押した瞬間に発動）／キーボード X・B。在庫 2、ミスのたびに 2 へ補充。
@@ -41,6 +68,10 @@ X=左右 / Y=上下 / Z=奥行き。自機は操作平面 `z=0` 上を動き `-Z
 - 効果音：`itemScore`（連鎖で音程が上がる。`AudioEngine.sfx(name, pitch)`）/ `itemPower` / `powerUp` / `bomb`（`audio-src/sfx/*.json`）。
 - デバッグ：`__bloom.state()` に bombs / power / powerProgress / powerOrbs / maxPower / items / bombActive / hitPending、
   `__bloom.bomb()`、`__bloom.setPower(n)`、`__bloom.dropItems(stars, orbs, x?, y?, z?)`、URL `?power=N`。
+- 面のデバッグ：`state()` に stage / stageId / stageTitle / placeholder / stages（クリア済みの内訳）/ darkness / bossState。
+  `__bloom.skipToStage(n)`、`__bloom.clearStage()`（今の面のボスを即撃破 → 集計 → 次の面。集計・移動・エンディング中に呼ぶとそれを飛ばす）、
+  `__bloom.advance(sec)`（描画なしで時間を進める。テスト用）。URL `?stage=N`（その面から開始。パワーは StageDef.startPower）、
+  `?boss=1` / `?midboss=1` は開始した面に効く。
 
 ## フェーズ
 1. 操作検証: 自機移動・カメラ・接近弾・判定

@@ -31,8 +31,8 @@ export const BG_TWILIGHT: BackgroundPreset = {
     rimA: 1.2, rimAColor: 0xff9a4a,
     rimB: 0.9, rimBColor: 0x7a6bff,
   },
-  darkness: 0.14,
-  darkRadius: 0.62,
+  darkness: 0.16,
+  darkRadius: 0.42,
   darkColor: 0x0a0414,
   streakColor: 0xffd6a8,
 };
@@ -54,8 +54,8 @@ export const BG_ABYSS: BackgroundPreset = {
     rimA: 1.0, rimAColor: 0x9d6bff,
     rimB: 0.6, rimBColor: 0xff6fb5,
   },
-  darkness: 0.82,
-  darkRadius: 0.3,
+  darkness: 0.88,
+  darkRadius: 0.19,
   darkColor: 0x020106,
   streakColor: 0xb9a8ff,
 };

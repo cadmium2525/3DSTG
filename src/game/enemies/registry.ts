@@ -221,8 +221,8 @@ registerFormation('sides', (i, _n, w, out) => {
 registerFormation('diagonal', (i, _n, w, out) => {
   const dir = w.x ? Math.sign(w.x) : i % 2 === 0 ? -1 : 1;
   const dy = (w.y ?? 0) - (i % 3) * 1.4;
-  out.start.set(dir * 16, 10.5 + dy, -86);
-  out.exit.set(-dir * 15, -6.5 + dy, -26);
+  out.start.set(dir * 15, 10 + dy, -74);
+  out.exit.set(-dir * 14, -6 + dy, -22);
   out.station.lerpVectors(out.start, out.exit, 0.5);
 });
 

@@ -106,6 +106,8 @@ declare global {
       skipToStage(n: number): void;
       /** Defeat the current stage's boss now → tally → next stage (or ending after the last). Repeated calls skip the tally / transition / ending. */
       clearStage(): void;
+      /** Simulate `sec` seconds of game time without rendering (tests / fast-forward). */
+      advance(sec: number): void;
       seed: number;
     };
   }
@@ -125,5 +127,6 @@ window.__bloom = {
   dropItems: (s, o, x, y, z) => game.debugDrop(s, o, x, y, z),
   skipToStage: (n) => game.skipToStage(n),
   clearStage: () => game.clearStage(),
+  advance: (sec) => game.advance(sec),
   seed,
 };

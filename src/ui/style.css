@@ -1289,7 +1289,17 @@
   opacity: 0;
 }
 .bd-tally.is-on .bd-tally-rows > div {
-  animation: bd-fadein 0.35s ease both;
+  animation: bd-rowin 0.35s ease both;
+}
+@keyframes bd-rowin {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .bd-tally-rows dt {
   font-family: var(--font-latin);
