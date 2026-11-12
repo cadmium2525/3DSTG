@@ -321,7 +321,7 @@ export class ShadowGirlBoss extends PhasedBoss<ShadowGirlConfig> {
     // Flames grow phase by phase.
     if (this.state !== BossState.Dying) this.flameT = 1 + pi * 0.32 + (this.state === BossState.Phase && pi === C.finalPhase ? 0.25 : 0);
     this.girl.flame += (this.flameT - this.girl.flame) * (1 - Math.exp(-dt * 2));
-    if (this.state !== BossState.Dying) this.girl.flash = Math.min(0.32, this.flash * 0.45);
+    if (this.state !== BossState.Dying) this.girl.flash = Math.min(0.14, this.flash * 0.3);
 
     // Darkness targets per phase.
     if (fighting) {

@@ -92,7 +92,7 @@ export class NoxMidBoss extends PhasedBoss<NoxConfig> {
     };
 
     this.armourMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1426, emissive: 0x1a0830, emissiveIntensity: 0.6, metalness: 0.75, roughness: 0.32,
+      color: 0x221a34, emissive: 0x2a1050, emissiveIntensity: 0.7, metalness: 0.75, roughness: 0.32,
       flatShading: true, fog: false, transparent: true,
     });
     this.trimMat = new THREE.MeshStandardMaterial({
