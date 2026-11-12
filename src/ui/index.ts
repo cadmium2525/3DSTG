@@ -387,6 +387,13 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   // Bomb fires on press (not release) so a 決死ボム within a fraction of a second is possible.
   let cardUntil = 0;
   let annFree = 0;
+  let annTimers: number[] = [];
+  /** Drop banners still waiting in the queue (screen changed). */
+  const flushBanners = () => {
+    annTimers.forEach((t) => clearTimeout(t));
+    annTimers = [];
+    annFree = 0;
+  };
   const showBanner = (text: string, sub?: string) => {
       annText.textContent = text;
       annSub.textContent = sub ?? '';
@@ -493,6 +500,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
 
   return {
     showTitle(hiScore: number) {
+      flushBanners();
       cancelAnimationFrame(countRaf);
       titleHi.textContent = fmt(hiScore);
       sync();
@@ -500,6 +508,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     },
 
     showHud() {
+      flushBanners();
       cancelAnimationFrame(countRaf);
       sync();
       setScreen('hud');
@@ -576,6 +585,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     },
 
     showResult(r: ResultData) {
+      flushBanners();
       cancelAnimationFrame(countRaf);
       resultAt = performance.now();
       result.classList.toggle('is-clear', r.cleared);
@@ -689,7 +699,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
       const now = performance.now();
       const at = Math.max(now, cardUntil, annFree);
       annFree = at + 1800;
-      if (at > now + 1) window.setTimeout(() => showBanner(text, sub), at - now);
+      if (at > now + 1) annTimers.push(window.setTimeout(() => showBanner(text, sub), at - now));
       else showBanner(text, sub);
     },
 

@@ -308,6 +308,8 @@ export class Game {
 
   /** Start playing stage `n` (stats of the run carry over). */
   private beginStage(n: number, viaTransition: boolean): void {
+    // Items collected during the previous tally/transition belong to that stage's row.
+    this.settleLastStageRow();
     const def = getStage(n);
     this.applyStageDef(def);
     this.phase = 'stage';
@@ -552,6 +554,8 @@ export class Game {
     const first = Math.max(1, Math.min(stageCount(), this.startStage || 1));
     this.startStage = 0;
     const turning = this.state === 'title' && this.intro.beginTurn();
+    // From the result screen (e.g. after the ending) the illustration card must not linger.
+    if (!turning) this.intro.hide();
     this.clearWorld();
     this.effects.clear();
     this.rng.reseed(this.seed);
@@ -638,6 +642,12 @@ export class Game {
     this.quality.setMode(this.save.settings.quality);
   }
 
+  /** Make the last cleared stage's row include everything scored since its start. */
+  private settleLastStageRow(): void {
+    const last = this.stageResults[this.stageResults.length - 1];
+    if (last && last.number === this.stageNo) last.score = this.score - this.stageStartScore;
+  }
+
   /** Player out of lives: result after `delay` seconds. */
   private endPlay(delay: number): void {
     this.phase = 'dying';
@@ -646,6 +656,7 @@ export class Game {
 
   private showResult(allClear: boolean): void {
     const p = this.player;
+    if (allClear) this.settleLastStageRow();
     const stages = this.stageResults.slice();
     if (!allClear) stages.push({ number: this.stageNo, title: this.def.title, score: this.score - this.stageStartScore, cleared: false });
     const newRecord = this.save.submitScore(this.score);
