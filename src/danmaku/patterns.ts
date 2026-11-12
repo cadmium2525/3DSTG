@@ -675,7 +675,15 @@ class JellyRing extends Emitter {
   }
 }
 
+/** Emitters registered by stage modules (src/danmaku/stageN.ts) without touching this switch. */
+const EXTRA_EMITTERS = new Map<PatternId, (opts: PatternOptions) => Emitter>();
+export function registerEmitter(id: PatternId, factory: (opts: PatternOptions) => Emitter): void {
+  EXTRA_EMITTERS.set(id, factory);
+}
+
 export function createEmitter(id: PatternId, opts: PatternOptions): Emitter {
+  const extra = EXTRA_EMITTERS.get(id);
+  if (extra) return extra(opts);
   switch (id) {
     case 'spiralCorridor': return new SpiralCorridor(opts);
     case 'petalBloom': return new PetalBloom(opts);
@@ -685,5 +693,7 @@ export function createEmitter(id: PatternId, opts: PatternOptions): Emitter {
     case 'wingSweep': return new WingSweep(opts);
     case 'cometTrail': return new CometTrail(opts);
     case 'jellyRing': return new JellyRing(opts);
+    default:
+      throw new Error(`Unknown pattern: ${id}`);
   }
 }
