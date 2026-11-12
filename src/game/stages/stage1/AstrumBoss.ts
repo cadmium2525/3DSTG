@@ -1,31 +1,14 @@
 /**
- * The stage boss: a rotating magic-circle / flower construct (crystal heart,
- * gyroscope rings, petal crown, rune circle). Runs the phase list from
- * StageData.BOSS: each phase ends by HP threshold or timeout, followed by a
- * short breather with bullets cleared.
+ * Stage 1 boss 「星環の花冠 アストルム」: a rotating magic-circle / flower construct (crystal
+ * heart, gyroscope rings, petal crown, rune circle). The phase state machine lives in
+ * PhasedBoss; this class only adds the visuals and motion.
  */
 import * as THREE from 'three';
-import { PALETTE } from '../core/config';
-import type { BulletClearedFn, Danmaku, PatternHandle, Vec3Like } from '../core/types';
-import { BOSS } from './StageData';
-import type { Targets } from './Shots';
-import type { Effects } from './Effects';
-import type { Rng } from './Rng';
+import { PALETTE } from '../../../core/config';
+import { PhasedBoss } from '../../bosses/PhasedBoss';
+import { BossState, type BossConfig, type BossContext } from '../../bosses/BossLike';
 
 const BURST_COLS = [PALETTE.pink, PALETTE.gold, PALETTE.cyan, PALETTE.purple];
-
-export enum BossState { Off, Enter, Phase, Breather, Dying, Escape, Done }
-
-export interface BossEvents {
-  onPhaseStart(index: number): void;
-  /** broken = HP threshold reached (vs. timeout); cancelled = bullets removed. */
-  onPhaseEnd(index: number, broken: boolean, cancelled: number): void;
-  onDefeated(x: number, y: number, z: number): void;
-  onEscaped(): void;
-  onHit(x: number, y: number, z: number, damaged: boolean): void;
-  /** Called for every bullet removed when a phase ends (bullets → star items). */
-  onBulletCancel?: BulletClearedFn;
-}
 
 const CIRCLE_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -88,16 +71,7 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-export class Boss {
-  readonly group = new THREE.Group();
-  readonly position = new THREE.Vector3(BOSS.position.x, BOSS.position.y, BOSS.position.z);
-  state = BossState.Off;
-  hp = 1;
-  phaseIndex = -1;
-  private t = 0; // time in current state
-  private life = 0; // total time alive
-  private handles: (PatternHandle | null)[] = [null, null, null];
-  private origin: () => Vec3Like;
+export class AstrumBoss extends PhasedBoss {
   private circleMat: THREE.ShaderMaterial;
   private glowMat: THREE.ShaderMaterial;
   private core: THREE.Mesh;
@@ -105,8 +79,6 @@ export class Boss {
   private rings: THREE.Mesh[] = [];
   private petals: THREE.InstancedMesh;
   private body = new THREE.Group();
-  private flash = 0;
-  private frozen = false;
   private open = 0.3;
   private burstT = 0;
   private m = new THREE.Matrix4();
@@ -115,11 +87,9 @@ export class Boss {
   private s = new THREE.Vector3();
   private v = new THREE.Vector3();
 
-  constructor(private danmaku: Danmaku, private effects: Effects, private rng: Rng, private ev: BossEvents) {
-    this.origin = () => this.position;
-    this.group.visible = false;
+  constructor(ctx: BossContext<BossConfig>) {
+    super(ctx);
     this.group.add(this.body);
-
     this.circleMat = new THREE.ShaderMaterial({
       vertexShader: CIRCLE_VERT, fragmentShader: CIRCLE_FRAG,
       uniforms: {
@@ -179,177 +149,69 @@ export class Boss {
     this.body.add(this.petals);
   }
 
-  get active(): boolean {
-    return this.state !== BossState.Off && this.state !== BossState.Done;
-  }
-
-  /** Damage accepted only while a phase is running. */
-  get vulnerable(): boolean {
-    return this.state === BossState.Phase;
-  }
-
-  reset(): void {
-    this.stopPatterns();
-    this.state = BossState.Off;
-    this.group.visible = false;
-    this.hp = 1;
-    this.phaseIndex = -1;
-    this.frozen = false;
-  }
-
-  spawn(): void {
-    this.reset();
-    this.state = BossState.Enter;
-    this.t = 0;
-    this.life = 0;
-    this.group.visible = true;
+  protected onSpawn(): void {
     this.circleMat.uniforms.uFade.value = 1;
-    this.position.set(BOSS.position.x, BOSS.position.y, -170);
+    this.position.set(this.config.position.x, this.config.position.y, -170);
   }
 
-  private stopPatterns(): void {
-    for (let i = 0; i < this.handles.length; i++) {
-      const h = this.handles[i];
-      if (h) h.stop();
-      this.handles[i] = null;
+  protected moveEnter(u: number): void {
+    const P = this.config.position;
+    const e = 1 - Math.pow(1 - u, 3);
+    this.position.set(P.x, P.y + (1 - e) * 8, -170 + (P.z + 170) * e);
+  }
+
+  protected movePhase(): void {
+    // Gentle drift so the emitter feels alive.
+    const P = this.config.position;
+    this.position.set(P.x + Math.sin(this.life * 0.5) * 1.2, P.y + Math.sin(this.life * 0.8) * 0.5, P.z);
+  }
+
+  protected moveBreather(dt: number): void {
+    this.position.x += (this.config.position.x - this.position.x) * (1 - Math.exp(-dt * 2));
+  }
+
+  protected onDeathStart(): void {
+    this.burstT = 0;
+  }
+
+  protected updateDying(dt: number): boolean {
+    const deathSec = this.config.deathSec;
+    this.burstT -= dt;
+    if (this.burstT <= 0) {
+      this.burstT = 0.12;
+      const r = 6;
+      this.effects.burst(
+        this.position.x + (this.rng.next() - 0.5) * r * 2, this.position.y + (this.rng.next() - 0.5) * r * 2, this.position.z + 2,
+        BURST_COLS[(this.rng.next() * 4) | 0], 26, 14, 1.4, 0.9,
+      );
+      this.effects.ring(this.position.x, this.position.y, this.position.z + 2, PALETTE.gold, 6 + this.rng.next() * 6, 0.6);
     }
+    this.flash = 0.6 + Math.sin(this.t * 40) * 0.4;
+    this.circleMat.uniforms.uFade.value = Math.max(0, 1 - this.t / deathSec);
+    this.body.scale.setScalar(1 + this.t * 0.08);
+    if (this.t < deathSec) return false;
+    const p = this.position;
+    this.effects.burst(p.x, p.y, p.z + 2, PALETTE.white, 140, 34, 2.2, 1.6);
+    this.effects.burst(p.x, p.y, p.z + 2, PALETTE.pink, 90, 24, 1.8, 1.4);
+    this.effects.ring(p.x, p.y, p.z + 3, PALETTE.white, 34, 1.0);
+    this.effects.ring(p.x, p.y, p.z + 3, PALETTE.gold, 22, 0.8);
+    this.body.scale.setScalar(1);
+    return true;
   }
 
-  private startPhase(i: number): void {
-    this.phaseIndex = i;
-    this.state = BossState.Phase;
-    this.t = 0;
-    const def = BOSS.phases[i];
-    for (let k = 0; k < def.patterns.length; k++) {
-      const p = def.patterns[k];
-      this.handles[k] = this.danmaku.startPattern(p.id, {
-        origin: this.origin, duration: def.timeout, intensity: p.intensity, seed: this.rng.int(),
-      });
-    }
-    this.ev.onPhaseStart(i);
+  protected updateEscape(dt: number): boolean {
+    const u = Math.min(1, this.t / 2);
+    this.position.y += dt * 10 * u;
+    this.position.z -= dt * 40 * u;
+    this.circleMat.uniforms.uFade.value = 1 - u;
+    return u >= 1;
   }
 
-  private endPhase(broken: boolean): void {
-    this.stopPatterns();
-    const cancelled = this.danmaku.clear(undefined, undefined, this.ev.onBulletCancel);
-    this.ev.onPhaseEnd(this.phaseIndex, broken, cancelled);
-    this.t = 0;
-    if (this.phaseIndex >= BOSS.phases.length - 1) {
-      if (broken) {
-        this.state = BossState.Dying;
-        this.burstT = 0;
-      } else {
-        this.state = BossState.Escape;
-      }
-    } else {
-      this.state = BossState.Breather;
-    }
+  protected onReset(): void {
+    this.body.scale.setScalar(1);
   }
 
-  damage(amount: number, x: number, y: number, z: number): void {
-    const ok = this.vulnerable;
-    if (ok) {
-      const floor = BOSS.phases[this.phaseIndex].hpEnd;
-      this.hp = Math.max(floor, this.hp - amount / BOSS.maxHp);
-      this.flash = Math.min(1, this.flash + 0.35);
-    }
-    this.ev.onHit(x, y, z, ok);
-  }
-
-  addTargets(t: Targets, id: number): void {
-    if (this.state === BossState.Off || this.state === BossState.Done || this.state === BossState.Dying) return;
-    if (this.state === BossState.Enter && this.t < BOSS.enterSec * 0.6) return;
-    t.add(id, this.position.x, this.position.y, this.position.z + 1.5, BOSS.hitRadius);
-  }
-
-  /** Debug: drop HP to the current phase's threshold. */
-  forceBreak(): void {
-    if (this.state === BossState.Phase) this.hp = BOSS.phases[this.phaseIndex].hpEnd;
-  }
-
-  /** Stop patterns and freeze the state machine (player died); visuals keep animating. */
-  freeze(): void {
-    this.stopPatterns();
-    this.frozen = true;
-  }
-
-  update(dt: number): void {
-    if (this.state === BossState.Off || this.state === BossState.Done) return;
-    this.life += dt;
-    const P = BOSS.position;
-    if (!this.frozen) this.t += dt;
-
-    switch (this.frozen ? BossState.Off : this.state) {
-      case BossState.Enter: {
-        const u = Math.min(1, this.t / BOSS.enterSec);
-        const e = 1 - Math.pow(1 - u, 3);
-        this.position.set(P.x, P.y + (1 - e) * 8, -170 + (P.z + 170) * e);
-        if (u >= 1) this.startPhase(0);
-        break;
-      }
-      case BossState.Phase: {
-        const def = BOSS.phases[this.phaseIndex];
-        // Gentle drift so the emitter feels alive.
-        this.position.set(P.x + Math.sin(this.life * 0.5) * 1.2, P.y + Math.sin(this.life * 0.8) * 0.5, P.z);
-        // Re-arm patterns that finished early.
-        for (let k = 0; k < def.patterns.length; k++) {
-          const h = this.handles[k];
-          if (h && h.done && this.t < def.timeout - 1) {
-            this.handles[k] = this.danmaku.startPattern(def.patterns[k].id, {
-              origin: this.origin, duration: def.timeout - this.t, intensity: def.patterns[k].intensity, seed: this.rng.int(),
-            });
-          }
-        }
-        if (this.hp <= def.hpEnd + 1e-6) this.endPhase(true);
-        else if (this.t >= def.timeout) this.endPhase(false);
-        break;
-      }
-      case BossState.Breather:
-        this.position.x += (P.x - this.position.x) * (1 - Math.exp(-dt * 2));
-        if (this.t >= BOSS.breatherSec) this.startPhase(this.phaseIndex + 1);
-        break;
-      case BossState.Dying: {
-        this.burstT -= dt;
-        if (this.burstT <= 0) {
-          this.burstT = 0.12;
-          const r = 6;
-          this.effects.burst(
-            this.position.x + (this.rng.next() - 0.5) * r * 2, this.position.y + (this.rng.next() - 0.5) * r * 2, this.position.z + 2,
-            BURST_COLS[(this.rng.next() * 4) | 0], 26, 14, 1.4, 0.9,
-          );
-          this.effects.ring(this.position.x, this.position.y, this.position.z + 2, PALETTE.gold, 6 + this.rng.next() * 6, 0.6);
-        }
-        this.flash = 0.6 + Math.sin(this.t * 40) * 0.4;
-        this.circleMat.uniforms.uFade.value = Math.max(0, 1 - this.t / BOSS.deathSec);
-        this.body.scale.setScalar(1 + this.t * 0.08);
-        if (this.t >= BOSS.deathSec) {
-          const p = this.position;
-          this.effects.burst(p.x, p.y, p.z + 2, PALETTE.white, 140, 34, 2.2, 1.6);
-          this.effects.burst(p.x, p.y, p.z + 2, PALETTE.pink, 90, 24, 1.8, 1.4);
-          this.effects.ring(p.x, p.y, p.z + 3, PALETTE.white, 34, 1.0);
-          this.effects.ring(p.x, p.y, p.z + 3, PALETTE.gold, 22, 0.8);
-          this.state = BossState.Done;
-          this.group.visible = false;
-          this.body.scale.setScalar(1);
-          this.ev.onDefeated(p.x, p.y, p.z);
-        }
-        break;
-      }
-      case BossState.Escape: {
-        const u = Math.min(1, this.t / 2);
-        this.position.y += dt * 10 * u;
-        this.position.z -= dt * 40 * u;
-        this.circleMat.uniforms.uFade.value = 1 - u;
-        if (u >= 1) {
-          this.state = BossState.Done;
-          this.group.visible = false;
-          this.ev.onEscaped();
-        }
-        break;
-      }
-    }
-
-    // Visual animation.
+  protected animate(dt: number): void {
     this.group.position.copy(this.position);
     this.flash = Math.max(0, this.flash - dt * 3);
     this.circleMat.uniforms.uTime.value = this.life;

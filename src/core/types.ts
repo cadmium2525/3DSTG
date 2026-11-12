@@ -15,7 +15,9 @@ export type PatternId =
   | 'rippleRing' // 波紋リング: concentric rings with a gap
   | 'constellationRain' // 星座の雨: bullets laid along curves
   | 'aimedBurst' // simple aimed shots for small enemies
-  | 'wingSweep'; // 胡蝶の羽ばたき: mirrored wing-edge walls sweeping in/out, thread the drifting gap (mid-boss)
+  | 'wingSweep' // 胡蝶の羽ばたき: mirrored wing-edge walls sweeping in/out, thread the drifting gap (mid-boss)
+  | 'cometTrail' // 彗星の尾: slow single bullets landing along a streaking comet's on-screen path (stage 1 enemy)
+  | 'jellyRing'; // 星海月の輪: one small ring around the player (stage 1 enemy)
 
 export const PATTERN_NAMES: Record<PatternId, string> = {
   spiralCorridor: '螺旋回廊',
@@ -24,6 +26,8 @@ export const PATTERN_NAMES: Record<PatternId, string> = {
   constellationRain: '星座の雨',
   aimedBurst: '狙い弾',
   wingSweep: '胡蝶の羽ばたき',
+  cometTrail: '彗星の尾',
+  jellyRing: '星海月の輪',
 };
 
 export interface Vec3Like {
@@ -141,6 +145,36 @@ export interface ResultData {
   graze: number;
   timeSec: number;
   livesLeft: number;
+  /** Every stage cleared (final result after the ending). */
+  allClear?: boolean;
+  /** Per-stage breakdown (cleared stages, plus the one the run ended in). */
+  stages?: StageResult[];
+}
+
+export interface StageResult {
+  number: number;
+  title: string;
+  /** Score earned in this stage (including its clear bonus). */
+  score: number;
+  cleared: boolean;
+}
+
+/** Stage-clear tally shown between stages. */
+export interface StageClearData {
+  stage: number;
+  title: string;
+  /** Score earned in the stage before the bonus. */
+  stageScore: number;
+  graze: number;
+  /** Star fragments / orbs of light collected in the stage. */
+  stars: number;
+  orbs: number;
+  /** Bonus lines (already added to `total`). */
+  bonus: { label: string; value: number }[];
+  /** Run score after the bonus. */
+  total: number;
+  /** True when the stage is a placeholder (reuses stage 1 content). */
+  placeholder?: boolean;
 }
 
 export interface UiCallbacks {
@@ -165,6 +199,11 @@ export interface GameUI {
   setPaused(paused: boolean): void;
   /** Short centre banner, e.g. boss name / pattern name. */
   announce(text: string, sub?: string): void;
+  /** Big stage title card ("STAGE 2" / 黄昏の境界 / TWILIGHT BORDER), fades by itself. */
+  stageTitle(stage: number, title: string, subtitle: string): void;
+  /** Stage-clear tally panel (non-modal; the game keeps running behind it). */
+  showStageClear(d: StageClearData): void;
+  hideStageClear(): void;
   /** Screen flash when the player is hit. */
   flashDamage(): void;
   /** Small floating feedback such as "GRAZE". */

@@ -4,6 +4,8 @@
  *   ?autostart=1  start immediately      ?invincible=1  no damage
  *   ?boss=1       start at the boss      ?seed=N        deterministic seed
  *   ?midboss=1    start at the mid-boss  ?power=N  start at shot power Lv N (1..4)
+ *   ?stage=N      start at stage N (1..3; power defaults to that stage's startPower). ?boss / ?midboss
+ *                 then apply to that stage. Retry always restarts from stage 1.
  */
 import { createDanmaku } from './danmaku';
 import { createUI } from './ui';
@@ -78,7 +80,9 @@ document.getElementById('ui-root')!.addEventListener(
 if (flag('invincible')) game.setInvincible(true);
 if (flag('boss')) game.bossOnStart = true;
 if (flag('midboss')) game.midBossOnStart = true;
-if (flag('autostart') || flag('boss') || flag('midboss')) game.start();
+const stageParam = Number(params.get('stage'));
+if (params.has('stage') && stageParam >= 1) game.startStage = stageParam | 0;
+if (flag('autostart') || flag('boss') || flag('midboss') || params.has('stage')) game.start();
 if (params.has('power')) game.setPower(Number(params.get('power')) || 1);
 
 declare global {
@@ -98,6 +102,10 @@ declare global {
       setPower(n: number): void;
       /** Drop items as if an enemy died ahead (stars, power orbs, optional x/y/z). */
       dropItems(stars: number, orbs: number, x?: number, y?: number, z?: number): void;
+      /** Jump to stage n (starts a run there if needed; keeps score / lives / power otherwise). */
+      skipToStage(n: number): void;
+      /** Defeat the current stage's boss now → tally → next stage (or ending after the last). Repeated calls skip the tally / transition / ending. */
+      clearStage(): void;
       seed: number;
     };
   }
@@ -115,5 +123,7 @@ window.__bloom = {
   bomb: () => game.useBomb(),
   setPower: (n) => game.setPower(n),
   dropItems: (s, o, x, y, z) => game.debugDrop(s, o, x, y, z),
+  skipToStage: (n) => game.skipToStage(n),
+  clearStage: () => game.clearStage(),
   seed,
 };

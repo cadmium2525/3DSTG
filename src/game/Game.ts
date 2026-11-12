@@ -1,6 +1,13 @@
 /**
- * Game core: renderer, loop, state machine (title / playing / paused / result),
- * and the wiring between player, shots, enemies, boss, danmaku, UI and audio.
+ * Game core: renderer, loop, state machine (title / playing / paused / result), the multi-stage
+ * flow and the wiring between player, shots, enemies, bosses, danmaku, UI and audio.
+ *
+ * Run flow (state 'playing', sub-phase in `phase`):
+ *   stage → (mid-boss inside 'stage') → boss → clearing (boss down, items magnet)
+ *   → tally (stage-clear panel, bonus) → transition (background morphs, stage title) → next stage …
+ *   → after the last stage's tally: ending (EndingSequence) → final result.
+ *   Game over at any point: dying → result. Lives / bombs / power carry over between stages.
+ * Everything stage-specific comes from the StageDef (src/game/stages/).
  */
 import * as THREE from 'three';
 import { FIELD, PALETTE, PLAYER } from '../core/config';
@@ -12,12 +19,15 @@ import {
   type HudData,
   type SaveStore,
   type SfxName,
+  type StageResult,
 } from '../core/types';
 import { Background } from './Background';
-import { Boss, BossState } from './Boss';
+import { BossState, type BossConfig, type BossEvents, type BossLike } from './bosses/BossLike';
 import { CameraRig } from './CameraRig';
 import { Effects } from './Effects';
 import { Enemies, MAX_ENEMIES } from './Enemies';
+import type { EnemyKindDef } from './enemies/registry';
+import { createEnding, type EndingSequence } from './Ending';
 import { Input } from './Input';
 import { Player } from './Player';
 import { TitleIntro } from './TitleIntro';
@@ -25,25 +35,33 @@ import { Quality, type QualityLevel } from './Quality';
 import { Rng } from './Rng';
 import { Shots, Targets } from './Shots';
 import { Stage } from './Stage';
-import { BOMB, BOSS, BOSS_SKIP_T, ENEMY_KINDS, ITEMS, POWER, SCORE } from './StageData';
+import { BOMB, ITEMS, POWER, SCORE } from './StageData';
 import { Items, ItemKind } from './Items';
 import { Bomb } from './Bomb';
-import { MidBoss, MidBossState } from './MidBoss';
-import { MIDBOSS, MIDBOSS_SKIP_T } from './StageData';
+import { eventTime, getStage, STAGES, stageCount, validateStages } from './stages';
+import { DIFFICULTY, type Difficulty, type ScoreTable, type StageDef } from './stages/types';
 
 export type GameState = 'title' | 'playing' | 'paused' | 'result';
 /** Sub-state while playing. */
-type PlayPhase = 'stage' | 'boss' | 'dying' | 'clearing';
+type PlayPhase = 'stage' | 'boss' | 'dying' | 'clearing' | 'tally' | 'transition' | 'ending';
+type BossRole = 'boss' | 'midboss';
 
 const BOSS_ID = MAX_ENEMIES;
 const MIDBOSS_ID = MAX_ENEMIES + 1;
 const MAX_DT = 1 / 20;
 const HUD_INTERVAL = 0.1;
 const PIXEL_RATIO_CAP: Record<QualityLevel, number> = { 0: 1, 1: 1.5, 2: 2 };
-const PHASE_NAMES = BOSS.phases.map((p) => p.patterns.map((x) => PATTERN_NAMES[x.id]).join(' + '));
 /** Orbs needed to reach power Lv1..4 (cumulative POWER.perLevel). */
 const POWER_AT = POWER.perLevel.reduce((a, n) => (a.push(a[a.length - 1] + n), a), [0]);
 const POWER_MAX = POWER_AT[POWER_AT.length - 1];
+/** Seconds of the stage-clear tally, and of the flight to the next stage. */
+const TALLY_SEC = 4.6;
+const TRANSITION_SEC = 3.6;
+
+function phaseName(cfg: BossConfig, i: number): string {
+  const p = cfg.phases[i];
+  return p.name ?? p.patterns.map((x) => PATTERN_NAMES[x.id]).join(' + ');
+}
 
 export interface GameDeps {
   canvas: HTMLCanvasElement;
@@ -78,12 +96,33 @@ export class Game {
   private shots: Shots;
   private targets = new Targets();
   private enemies: Enemies;
-  private boss: Boss;
   private stage: Stage;
-  // Mid-boss (see MidBoss.ts / StageData.MIDBOSS).
-  private midBoss: MidBoss;
-  private hudMid = { name: MIDBOSS.name, hp: 1, pattern: '' as string | undefined };
+
+  // Stages (src/game/stages). Bosses are created per StageDef and cached.
+  /** 1-based number of the stage being played. */
+  stageNo = 1;
+  private def: StageDef = STAGES[0];
+  private sc: ScoreTable = SCORE;
+  difficulty: Difficulty = DIFFICULTY.normal;
+  private bossCache = new Map<string, BossLike>();
+  private boss!: BossLike;
+  private midBoss: BossLike | null = null;
+  private hudBoss = { name: '', hp: 1, pattern: '' as string | undefined };
+  private hudMid = { name: '', hp: 1, pattern: '' as string | undefined };
   midBossOnStart = false;
+  /** Debug / ?stage=N: the next start() begins at this stage (consumed). */
+  startStage = 0;
+  private stageResults: StageResult[] = [];
+  private stageStartScore = 0;
+  private stageStartGraze = 0;
+  private stageMisses = 0;
+  private stageStars = 0;
+  private stageOrbs = 0;
+  private phaseT = 0;
+  private bannerT = -1;
+  private ending: EndingSequence | null = null;
+  private lightV = new THREE.Vector3();
+
   // Items, shot power, bomb (see Items.ts / Bomb.ts / StageData ITEMS, POWER, BOMB).
   private items: Items;
   private bomb: Bomb;
@@ -105,7 +144,6 @@ export class Game {
   private grazeChain = 0;
   private lastGrazeT = -10;
   private endTimer = 0;
-  private endCleared = false;
 
   // Loop.
   private last = 0;
@@ -116,7 +154,6 @@ export class Game {
 
   // Throttles.
   private hud: HudData = { score: 0, hiScore: 0, lives: PLAYER.lives, graze: 0, bombs: BOMB.stock, power: 1, powerProgress: 0, boss: null };
-  private hudBoss = { name: BOSS.name, hp: 1, pattern: '' as string | undefined };
   private hudTimer = 0;
   private hudDirty = true;
   private sfxT: Partial<Record<SfxName, number>> = {};
@@ -134,6 +171,8 @@ export class Game {
     this.seed = d.seed;
     this.rng = new Rng(d.seed);
 
+    if (import.meta.env.DEV) for (const e of validateStages()) console.warn('[stages]', e);
+
     const dpr = window.devicePixelRatio || 1;
     this.renderer = new THREE.WebGLRenderer({
       canvas: d.canvas,
@@ -147,23 +186,9 @@ export class Game {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = this.scene;
-    scene.background = new THREE.Color(PALETTE.bg);
-    scene.fog = new THREE.Fog(PALETTE.bg, 70, 190);
-
-    // Lights: soft purple ambient, warm key from the camera side, cyan/pink rims from the depths.
-    scene.add(new THREE.HemisphereLight(0xb7a6ff, 0x141030, 1.1));
-    const key = new THREE.DirectionalLight(0xfff4ec, 1.7);
-    key.position.set(2.5, 4, 7);
-    scene.add(key);
-    const rim = new THREE.DirectionalLight(PALETTE.cyan, 1.4);
-    rim.position.set(-3, 2.5, -6);
-    scene.add(rim);
-    const rim2 = new THREE.DirectionalLight(PALETTE.pink, 0.8);
-    rim2.position.set(3.5, -1, -5);
-    scene.add(rim2);
-
+    // Background owns the clear colour, fog and lights (per-stage presets).
     this.bg = new Background(new Rng(d.seed ^ 0x5bd1e995));
-    scene.add(this.bg.group);
+    this.bg.attach(scene);
     this.effects = new Effects(this.rng);
     scene.add(this.effects.group);
     this.player = new Player();
@@ -178,88 +203,36 @@ export class Game {
     scene.add(this.bomb.group);
 
     this.enemies = new Enemies(this.danmaku, this.rng, {
-      onKilled: (kind, x, y, z) => {
-        const def = ENEMY_KINDS[kind];
-        this.addScore(def.score);
-        this.dropItems(kind, x, y, z);
-        this.effects.burst(x, y, z, def.color, kind === 'lantern' ? 60 : 26, kind === 'lantern' ? 16 : 10, kind === 'lantern' ? 1.1 : 0.6, 0.8);
-        this.effects.burst(x, y, z, PALETTE.white, 8, 6, 0.5, 0.4);
-        this.effects.ring(x, y, z, def.color, def.scale * 2.6, 0.45);
-        this.sfx('enemyDown', 0.04);
-        if (kind === 'lantern') this.rig.shake(0.12);
-      },
+      onKilled: (_kind, def, x, y, z) => this.onEnemyKilled(def, x, y, z),
       onHit: (x, y, z) => {
         this.effects.burst(x, y, z + 0.5, PALETTE.cyan, 2, 5, 0.3, 0.25);
         this.sfx('enemyHit', 0.06);
       },
-    });
+    }, this.effects);
     scene.add(this.enemies.group);
-
-    this.boss = new Boss(this.danmaku, this.effects, this.rng, {
-      onPhaseStart: (i) => {
-        this.ui.announce(PHASE_NAMES[i], `SPELL ${i + 1} / ${BOSS.phases.length}`);
-        this.hudBoss.pattern = PHASE_NAMES[i];
-        this.hudDirty = true;
-      },
-      onPhaseEnd: (_i, broken) => {
-        // Cancelled bullets already turned into star items (onBulletCancel).
-        if (broken) this.addScore(SCORE.phaseBreak);
-        this.hudBoss.pattern = undefined;
-        this.hudDirty = true;
-        const p = this.boss.position;
-        this.items.magnetAll();
-        if (broken && _i < BOSS.phases.length - 1) {
-          this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.bossPhase.stars, ITEMS.starValue, 2);
-          this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.bossPhase.power, 1, 1.6);
-        }
-        this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 20, 0.7);
-        if (broken) this.rig.shake(0.18);
-      },
-      onDefeated: () => {
-        this.sfx('bossDown');
-        this.rig.shake(0.6, 2.5);
-        this.danmaku.stopAllPatterns();
-        this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
-        this.addScore(SCORE.bossKill);
-        this.ui.announce('BOSS DEFEATED', `+${SCORE.bossKill.toLocaleString()}`);
-        this.endPlay(true, 3.0);
-      },
-      onEscaped: () => {
-        this.danmaku.clear();
-        this.ui.announce('TIME UP', 'ボスは星の彼方へ去った');
-        this.endPlay(true, 2.0);
-      },
-      onHit: (x, y, z, damaged) => {
-        if (damaged) this.addScore(SCORE.bossHit * this.shots.damage);
-        this.effects.burst(x, y, z + 1, damaged ? PALETTE.gold : PALETTE.purple, 2, 7, 0.45, 0.25);
-        this.sfx('enemyHit', 0.07);
-      },
-      onBulletCancel: this.items.cancelBullet,
-    });
-    scene.add(this.boss.group);
-    this.midBoss = this.createMidBoss();
-    scene.add(this.midBoss.group);
 
     scene.add(this.danmaku.object3d);
 
     this.stage = new Stage({
       wave: (w) => this.enemies.spawnWave(w),
       intro: (e) => {
-        this.enemies.spawnLantern(e.pattern, e.duration, e.intensity);
+        this.enemies.spawnLantern(e.pattern, e.duration, e.intensity, e.kind);
         this.ui.announce(PATTERN_NAMES[e.pattern], e.sub);
       },
       announce: (e) => this.ui.announce(e.text ?? '', e.sub),
-      warning: () => {
+      warning: (e) => {
         this.enemies.retreatAll();
-        this.ui.announce('WARNING', '強大な魔力反応が接近中');
+        this.ui.announce(e.text ?? 'WARNING', e.sub ?? this.def.warningText ?? '強大な魔力反応が接近中');
         this.sfx('bossWarning');
         // Boss theme starts under the alarm (the alarm ducks the BGM).
-        this.audio.playBgm('boss');
+        this.audio.playBgm(this.def.bgm.boss);
         this.rig.shake(0.08, 1.5);
       },
+      scenery: (e) => this.bg.scenery(e.name, e.duration),
       midBoss: () => this.beginMidBoss(),
       boss: () => this.beginBoss(),
     });
+    this.applyStageDef(STAGES[0]);
 
     this.quality = new Quality(this.save.settings.quality, (l) => this.applyQuality(l));
 
@@ -293,6 +266,246 @@ export class Game {
   }
 
   /* ------------------------------------------------------------------ */
+  /* Stages / bosses                                                     */
+  /* ------------------------------------------------------------------ */
+
+  /** Boss instance for a stage + role (created once, then reused). */
+  private getBoss(def: StageDef, role: BossRole): BossLike | null {
+    const slot = role === 'boss' ? def.boss : def.midBoss;
+    if (!slot) return null;
+    const key = `${def.id}:${role}`;
+    let b = this.bossCache.get(key);
+    if (!b) {
+      b = slot.create({
+        danmaku: this.danmaku,
+        effects: this.effects,
+        rng: this.rng,
+        events: this.makeBossEvents(role),
+        config: slot.config,
+        difficulty: this.difficulty,
+        role,
+      });
+      this.scene.add(b.group);
+      this.bossCache.set(key, b);
+    }
+    return b;
+  }
+
+  /** Point every stage-dependent system at `def` (bosses reset, timeline rewound). */
+  private applyStageDef(def: StageDef): void {
+    this.def = def;
+    this.stageNo = def.number;
+    this.sc = def.score ? { ...SCORE, ...def.score } : SCORE;
+    for (const b of this.bossCache.values()) b.reset();
+    this.boss = this.getBoss(def, 'boss')!;
+    this.midBoss = this.getBoss(def, 'midboss');
+    this.hudBoss.name = def.boss.config.name;
+    this.hudMid.name = def.midBoss?.config.name ?? '';
+    this.midBossResult = null;
+    this.enemies.difficulty = this.difficulty;
+    this.stage.reset(def.events);
+  }
+
+  /** Start playing stage `n` (stats of the run carry over). */
+  private beginStage(n: number, viaTransition: boolean): void {
+    const def = getStage(n);
+    this.applyStageDef(def);
+    this.phase = 'stage';
+    this.phaseT = 0;
+    this.stageStartScore = this.score;
+    this.stageStartGraze = this.graze;
+    this.stageMisses = 0;
+    this.stageStars = 0;
+    this.stageOrbs = 0;
+    this.bg.setPreset(def.background, viaTransition ? TRANSITION_SEC : 1.4);
+    this.audio.playBgm(def.bgm.stage);
+    this.bannerT = viaTransition ? -1 : 0.5;
+    this.hudDirty = true;
+  }
+
+  private makeBossEvents(role: BossRole): BossEvents {
+    const self = () => (role === 'boss' ? this.boss : this.midBoss)!;
+    const hud = () => (role === 'boss' ? this.hudBoss : this.hudMid);
+    return {
+      onPhaseStart: (i) => {
+        const cfg = self().config;
+        const name = phaseName(cfg, i);
+        const n = cfg.phases.length;
+        this.ui.announce(name, role === 'boss' ? `SPELL ${i + 1} / ${n}` : `MID BOSS  ${i + 1} / ${n}`);
+        hud().pattern = name;
+        this.hudDirty = true;
+      },
+      onPhaseEnd: (i, broken) => {
+        const b = self();
+        const p = b.position;
+        const last = i >= b.config.phases.length - 1;
+        hud().pattern = undefined;
+        this.hudDirty = true;
+        if (role === 'boss') {
+          // Cancelled bullets already turned into star items (onBulletCancel).
+          if (broken) this.addScore(this.sc.phaseBreak);
+          this.items.magnetAll();
+          if (broken && !last) {
+            this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.bossPhase.stars, ITEMS.starValue, 2);
+            this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.bossPhase.power, 1, 1.6);
+          }
+          this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 20, 0.7);
+          if (broken) this.rig.shake(0.18);
+        } else {
+          // Timeout = no bonus at all (it is about to fly away / change phase on its own).
+          if (broken) {
+            this.items.magnetAll();
+            if (!last) {
+              this.addScore(this.sc.midBossPhaseBreak);
+              this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.midBossPhase.stars, ITEMS.starValue, 1.8);
+              this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.midBossPhase.power, 1, 1.4);
+            }
+            this.rig.shake(0.14);
+          }
+          this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 14, 0.6);
+        }
+      },
+      onDefeated: (x, y, z) => {
+        if (role === 'boss') {
+          this.sfx('bossDown');
+          this.rig.shake(0.6, 2.5);
+          this.onStageBossDown(true);
+          return;
+        }
+        this.sfx('midbossDown');
+        this.rig.shake(0.42, 3);
+        this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
+        this.addScore(this.sc.midBossKill);
+        // Guaranteed big power burst, sucked straight to the heroine.
+        this.items.magnetAll(1.5);
+        this.items.drop(ItemKind.Power, x, y, z, ITEMS.midBossKill.power, 1, 1.6);
+        this.items.drop(ItemKind.Star, x, y, z, ITEMS.midBossKill.stars, ITEMS.starValue, 2);
+        this.ui.announce('MID BOSS DEFEATED', `+${this.sc.midBossKill.toLocaleString()}`);
+        this.endMidBoss('defeated');
+      },
+      onEscaped: () => {
+        if (role === 'boss') {
+          this.onStageBossDown(false);
+          return;
+        }
+        this.ui.announce('ESCAPED', self().config.escapeText ?? '');
+        this.endMidBoss('escaped');
+      },
+      onHit: (x, y, z, damaged) => {
+        if (damaged) this.addScore((role === 'boss' ? this.sc.bossHit : this.sc.midBossHit) * this.shots.damage);
+        const col = role === 'boss' ? PALETTE.gold : PALETTE.cyan;
+        this.effects.burst(x, y, z + 1, damaged ? col : PALETTE.purple, 2, 7, role === 'boss' ? 0.45 : 0.4, 0.25);
+        this.sfx('enemyHit', 0.07);
+      },
+      onBulletCancel: this.items.cancelBullet,
+    };
+  }
+
+  /** The stage boss was defeated (killed) or left (timeout): clear → tally. */
+  private onStageBossDown(killed: boolean): void {
+    if (this.phase !== 'boss' && this.phase !== 'stage') return;
+    this.danmaku.stopAllPatterns();
+    if (killed) {
+      this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
+      this.addScore(this.sc.bossKill);
+      this.ui.announce('BOSS DEFEATED', `+${this.sc.bossKill.toLocaleString()}`);
+    } else {
+      this.danmaku.clear();
+      this.ui.announce('TIME UP', this.def.boss.config.escapeText ?? '');
+    }
+    this.enemies.retreatAll();
+    this.phase = 'clearing';
+    this.endTimer = killed ? 3.0 : 2.0;
+    this.items.magnetAll(this.endTimer + 1);
+    this.hudDirty = true;
+  }
+
+  private beginTally(): void {
+    this.phase = 'tally';
+    this.phaseT = 0;
+    const n = this.stageNo;
+    const sc = this.sc;
+    const stageScore = this.score - this.stageStartScore;
+    const bonus = [
+      { label: 'CLEAR BONUS', value: sc.stageClearBonus * n },
+      { label: `残機 × ${this.player.lives}`, value: this.player.lives * sc.lifeBonus },
+    ];
+    if (this.stageMisses === 0) bonus.push({ label: 'NO MISS', value: sc.noMissBonus });
+    for (const b of bonus) this.addScore(b.value);
+    this.stageResults.push({ number: n, title: this.def.title, score: this.score - this.stageStartScore, cleared: true });
+    this.items.magnetAll(TALLY_SEC);
+    this.sfx('clear');
+    this.ui.showStageClear({
+      stage: n,
+      title: this.def.title,
+      stageScore,
+      graze: this.graze - this.stageStartGraze,
+      stars: this.stageStars,
+      orbs: this.stageOrbs,
+      bonus,
+      total: this.score,
+      placeholder: this.def.placeholder,
+    });
+    this.hudDirty = true;
+  }
+
+  private beginTransition(): void {
+    this.phase = 'transition';
+    this.phaseT = 0;
+    this.ui.hideStageClear();
+    const next = getStage(this.stageNo + 1);
+    this.bg.setPreset(next.background, TRANSITION_SEC);
+    this.audio.playBgm(next.bgm.stage);
+    this.bannerT = 0.7;
+    this.hudDirty = true;
+  }
+
+  private beginEnding(): void {
+    this.phase = 'ending';
+    this.phaseT = 0;
+    this.ui.hideStageClear();
+    this.ending = createEnding({ ui: this.ui, audio: this.audio, bg: this.bg });
+    this.ending.start();
+  }
+
+  /** Per-frame flow between stages (tally → transition → next stage / ending → result). */
+  private updateFlow(dt: number): void {
+    this.phaseT += dt;
+    if (this.bannerT >= 0) {
+      this.bannerT -= dt;
+      if (this.bannerT < 0) {
+        const d = this.phase === 'transition' ? getStage(this.stageNo + 1) : this.def;
+        this.ui.stageTitle(d.number, d.title, d.subtitle);
+      }
+    }
+    switch (this.phase) {
+      case 'dying':
+        this.endTimer -= dt;
+        if (this.endTimer <= 0) this.showResult(false);
+        break;
+      case 'clearing':
+        this.endTimer -= dt;
+        if (this.endTimer <= 0) this.beginTally();
+        break;
+      case 'tally':
+        if (this.phaseT >= TALLY_SEC) {
+          if (this.stageNo < stageCount()) this.beginTransition();
+          else this.beginEnding();
+        }
+        break;
+      case 'transition':
+        if (this.phaseT >= TRANSITION_SEC) this.beginStage(this.stageNo + 1, true);
+        break;
+      case 'ending':
+        if (!this.ending || this.ending.update(dt)) {
+          this.ending = null;
+          this.showResult(true);
+        }
+        break;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* State transitions                                                   */
   /* ------------------------------------------------------------------ */
 
@@ -300,12 +513,14 @@ export class Game {
     this.danmaku.stopAllPatterns();
     this.danmaku.clear();
     this.enemies.clear();
-    this.boss.reset();
-    this.midBoss.reset();
+    for (const b of this.bossCache.values()) b.reset();
     this.midBossResult = null;
     this.shots.clear();
     this.items.clear();
     this.bomb.reset();
+    this.ending = null;
+    this.bannerT = -1;
+    this.ui?.hideStageClear();
     this.hitPendingT = 0;
     delete this.app.dataset.hitPending;
     delete this.app.dataset.bombActive;
@@ -319,6 +534,7 @@ export class Game {
     this.player.setTitlePose();
     this.player.alive = true;
     this.player.invincible = 0;
+    this.bg.setPreset(STAGES[0].background, 1.2);
     this.ui.showTitle(this.save.hiScore);
     this.intro.showTitle(!this.titleShown);
     this.titleShown = true;
@@ -327,13 +543,15 @@ export class Game {
     this.needsRender = true;
   }
 
+  /** Start a run (at stage 1, or at `startStage` once when set by ?stage=N / skipToStage). */
   start(): void {
+    const first = Math.max(1, Math.min(stageCount(), this.startStage || 1));
+    this.startStage = 0;
     const turning = this.state === 'title' && this.intro.beginTurn();
     this.clearWorld();
     this.effects.clear();
     this.rng.reseed(this.seed);
     this.state = 'playing';
-    this.phase = 'stage';
     this.score = 0;
     this.graze = 0;
     this.playTime = 0;
@@ -345,17 +563,19 @@ export class Game {
     this.maxPower = 1;
     this.dropBank = 0;
     this.shots.level = 1;
+    this.stageResults = [];
     this.player.reset();
     this.player.position.set(0, turning ? 0 : -0.8, FIELD.planeZ);
     this.player.setPlayPose();
     // During the title turn-around the camera waits a moment before swooping.
     this.rig.mode = turning ? 'title' : 'play';
-    this.stage.reset();
     this.input.reset();
     this.quality.hold(2);
     this.ui.showHud();
     this.audio.setPaused(false);
-    this.audio.playBgm('stage');
+    this.beginStage(first, false);
+    // Starting later than stage 1: the power a run would usually have by then.
+    if (first > 1) this.setPowerOrbs(POWER_AT[Math.max(1, Math.min(4, getStage(first).startPower ?? first)) - 1]);
     this.hudDirty = true;
     if (this.bossOnStart) this.skipToBoss();
     else if (this.midBossOnStart) this.skipToMidBoss();
@@ -367,21 +587,22 @@ export class Game {
     this.enemies.clear();
     this.danmaku.stopAllPatterns();
     this.danmaku.clear();
-    this.midBoss.reset(); // skipping to the boss also skips the mid-boss
-    this.stage.jumpTo(BOSS_SKIP_T);
+    this.midBoss?.reset(); // skipping to the boss also skips the mid-boss
+    const w = eventTime(this.def, 'warning');
+    this.stage.jumpTo(w >= 0 ? w : Math.max(0, eventTime(this.def, 'boss') - 0.01));
   }
 
   private beginBoss(): void {
     this.phase = 'boss';
     this.enemies.clear();
     this.boss.spawn();
-    this.audio.playBgm('boss');
-    this.ui.announce(BOSS.name, 'BOSS');
+    this.audio.playBgm(this.def.bgm.boss);
+    this.ui.announce(this.def.boss.config.name, this.def.boss.config.sub ?? 'BOSS');
     this.hudBoss.pattern = undefined;
     this.hudDirty = true;
   }
 
-  setPaused(p: boolean, fromUi = false): void {
+  setPaused(p: boolean, _fromUi = false): void {
     if (p && this.state === 'playing') {
       this.state = 'paused';
       this.audio.setPaused(true);
@@ -413,20 +634,16 @@ export class Game {
     this.quality.setMode(this.save.settings.quality);
   }
 
-  /** Called when the run ends; result shown after `delay` seconds. */
-  private endPlay(cleared: boolean, delay: number): void {
-    this.phase = cleared ? 'clearing' : 'dying';
-    if (cleared) this.items.magnetAll(delay + 1);
-    this.endCleared = cleared;
+  /** Player out of lives: result after `delay` seconds. */
+  private endPlay(delay: number): void {
+    this.phase = 'dying';
     this.endTimer = delay;
   }
 
-  private showResult(): void {
-    const cleared = this.endCleared;
+  private showResult(allClear: boolean): void {
     const p = this.player;
-    if (cleared) {
-      this.addScore(p.lives * SCORE.lifeBonus + (this.misses === 0 ? SCORE.noMissBonus : 0));
-    }
+    const stages = this.stageResults.slice();
+    if (!allClear) stages.push({ number: this.stageNo, title: this.def.title, score: this.score - this.stageStartScore, cleared: false });
     const newRecord = this.save.submitScore(this.score);
     this.clearWorld();
     this.state = 'result';
@@ -436,10 +653,12 @@ export class Game {
     p.alive = true;
     p.invincible = 0;
     this.audio.stopBgm();
-    this.sfx(cleared ? 'clear' : 'gameOver');
+    this.sfx(allClear ? 'clear' : 'gameOver');
     this.pushHud();
     this.ui.showResult({
-      cleared,
+      cleared: allClear,
+      allClear,
+      stages,
       score: this.score,
       hiScore: this.save.hiScore,
       newRecord,
@@ -467,9 +686,20 @@ export class Game {
   private onShotHit = (id: number, x: number, y: number, z: number): void => {
     const dmg = this.shots.damage;
     if (id === BOSS_ID) this.boss.damage(dmg, x, y, z);
-    else if (id === MIDBOSS_ID) this.midBoss.damage(dmg, x, y, z);
+    else if (id === MIDBOSS_ID) this.midBoss?.damage(dmg, x, y, z);
     else this.enemies.damage(id, dmg);
   };
+
+  private onEnemyKilled(def: EnemyKindDef, x: number, y: number, z: number): void {
+    const big = !!def.big;
+    this.addScore(def.score);
+    this.dropItems(def, x, y, z);
+    this.effects.burst(x, y, z, def.color, big ? 60 : 26, big ? 16 : 10, big ? 1.1 : 0.6, 0.8);
+    this.effects.burst(x, y, z, PALETTE.white, 8, 6, 0.5, 0.4);
+    this.effects.ring(x, y, z, def.color, def.scale * 2.6, 0.45);
+    this.sfx('enemyDown', 0.04);
+    if (big) this.rig.shake(0.12);
+  }
 
   /* ---- items / power ---- */
 
@@ -506,9 +736,9 @@ export class Game {
     }
   }
 
-  private dropItems(kind: keyof typeof ITEMS.drops, x: number, y: number, z: number): void {
-    const d = ITEMS.drops[kind];
-    const big = kind === 'lantern';
+  private dropItems(def: EnemyKindDef, x: number, y: number, z: number): void {
+    const d = def.drops;
+    const big = !!def.big;
     this.items.drop(ItemKind.Star, x, y, z, d.stars, ITEMS.starValue, big ? 1.3 : 0.7);
     this.dropBank += d.power;
     const n = Math.floor(this.dropBank + 1e-6);
@@ -521,10 +751,12 @@ export class Game {
     const chain = this.chainNow();
     const mul = 1 + chain * ITEMS.chainBonus;
     if (kind === ItemKind.Star) {
+      this.stageStars++;
       this.addScore(value * mul);
       this.sfx('itemScore', 0.035, chain * 0.35);
       this.effects.burst(p.x, p.y, p.z, PALETTE.gold, 1, 2.5, 0.14, 0.25);
     } else {
+      this.stageOrbs++;
       if (this.powerOrbs >= POWER_MAX) this.addScore(POWER.maxBonus * mul);
       else this.setPowerOrbs(this.powerOrbs + value);
       this.sfx('itemPower', 0.05);
@@ -571,13 +803,14 @@ export class Game {
     this.enemies.damageAll(BOMB.enemyDamage);
     const b = this.boss.position;
     if (this.boss.active) this.boss.damage(BOMB.bossDamage, b.x, b.y, b.z + 2);
-    const m = this.midBoss.position;
-    if (this.midBoss.active) this.midBoss.damage(BOMB.bossDamage, m.x, m.y, m.z + 2);
+    const mb = this.midBoss;
+    if (mb && mb.active) mb.damage(BOMB.bossDamage, mb.position.x, mb.position.y, mb.position.z + 2);
   }
 
   private onPlayerHit(): void {
     const p = this.player.position;
     this.misses++;
+    this.stageMisses++;
     this.hitPendingT = 0;
     delete this.app.dataset.hitPending;
     this.sfx('playerHit');
@@ -598,23 +831,23 @@ export class Game {
     if (dead) {
       this.danmaku.stopAllPatterns();
       this.boss.freeze();
-      this.midBoss.freeze();
+      this.midBoss?.freeze();
       this.effects.burst(p.x, p.y, p.z, PALETTE.cyan, 60, 12, 0.4, 1.2);
       this.effects.ring(p.x, p.y, p.z, PALETTE.white, 6, 0.9);
       this.rig.shake(0.6, 2.5);
-      this.endPlay(false, 1.8);
+      this.endPlay(1.8);
     }
   }
 
   private onGraze(n: number): void {
-    const bossMul = this.phase === 'boss' || this.midBoss.active ? SCORE.grazeBossMul : 1;
-    const fastMul = this.player.slow ? 1 : SCORE.grazeFastMul;
+    const bossMul = this.phase === 'boss' || this.midBoss?.active ? this.sc.grazeBossMul : 1;
+    const fastMul = this.player.slow ? 1 : this.sc.grazeFastMul;
     for (let i = 0; i < n; i++) {
       if (this.playTime - this.lastGrazeT < SCORE.grazeChainWindow) this.grazeChain++;
       else this.grazeChain = 0;
       this.lastGrazeT = this.playTime;
       const chain = Math.min(this.grazeChain, SCORE.grazeChainCap);
-      this.addScore((SCORE.grazeBase + chain * SCORE.grazeChainStep) * bossMul * fastMul);
+      this.addScore((this.sc.grazeBase + chain * this.sc.grazeChainStep) * bossMul * fastMul);
     }
     this.graze += n;
     const p = this.player.position;
@@ -670,7 +903,8 @@ export class Game {
     this.time += dt;
     const settings = this.save.settings;
     const playing = this.state === 'playing';
-    const control = playing && !this.intro.busy && (this.phase === 'stage' || this.phase === 'boss' || this.phase === 'clearing');
+    const fighting = this.phase === 'stage' || this.phase === 'boss';
+    const control = playing && !this.intro.busy && this.phase !== 'dying';
     const slow = settings.slowMode || this.input.slowHeld;
 
     // Input -> movement.
@@ -694,14 +928,13 @@ export class Game {
       this.targets.begin();
       this.enemies.addTargets(this.targets);
       this.boss.addTargets(this.targets, BOSS_ID);
-      this.midBoss.addTargets(this.targets, MIDBOSS_ID);
-      const firing = p.alive && (this.phase === 'stage' || this.phase === 'boss') && this.playTime > 0.8 && !this.intro.busy;
+      this.midBoss?.addTargets(this.targets, MIDBOSS_ID);
+      const firing = p.alive && fighting && this.playTime > 0.8 && !this.intro.busy;
       const volleys = this.shots.update(dt, firing, p.position, this.targets, this.onShotHit);
       if (volleys > 0) this.sfx('shot', 0.11);
 
-      this.enemies.update(dt, this.phase === 'stage' || this.phase === 'boss');
-      this.boss.update(dt);
-      this.midBoss.update(dt);
+      this.enemies.update(dt, fighting);
+      this.updateBosses(dt);
 
       // Bomb: clear bullets inside the sweeping radius (→ stars), damage ticks.
       const ticks = this.bomb.update(dt, p.position, pendingU);
@@ -716,7 +949,7 @@ export class Game {
       if (cr > 0) this.danmaku.clear(p.position, cr, this.items.cancelBullet);
 
       // God mode (debug) still collides so grazes count; hits are ignored.
-      const collide = p.alive && p.invincible <= 0 && p.guard <= 0 && this.hitPendingT <= 0 && (this.phase === 'stage' || this.phase === 'boss');
+      const collide = p.alive && p.invincible <= 0 && p.guard <= 0 && this.hitPendingT <= 0 && fighting;
       const res = this.danmaku.update(dt, p.position, collide);
       if (collide && res.hit && !p.godMode) {
         if (this.bombs > 0) this.beginHitPending();
@@ -724,32 +957,42 @@ export class Game {
       } else if (collide && res.grazes > 0) this.onGraze(res.grazes);
 
       this.items.update(dt, p.position, slow, p.alive && this.phase !== 'dying');
-
-      if (this.phase === 'dying' || this.phase === 'clearing') {
-        this.endTimer -= dt;
-        if (this.endTimer <= 0) this.showResult();
-      }
+      this.updateFlow(dt);
     } else {
       this.enemies.update(dt, false);
-      this.boss.update(dt);
-      this.midBoss.update(dt);
+      this.updateBosses(dt);
       this.danmaku.update(dt, p.position, false);
       this.bomb.update(dt, p.position, -1);
     }
 
     this.effects.update(dt);
-    this.bg.setSpeed(playing ? (this.playTime < 1.4 ? 2.8 : 1) : 0.45);
-    this.bg.setFramesOpacity(this.rig.mode === 'play' ? 0.22 : 0);
-    this.bg.update(dt);
+    let speed = 0.45;
+    if (playing) {
+      if (this.playTime < 1.4) speed = 2.8;
+      else if (this.phase === 'transition') speed = 1 + 2.4 * Math.sin(Math.min(1, this.phaseT / TRANSITION_SEC) * Math.PI);
+      else if (this.phase === 'ending') speed = 0.6;
+      else speed = 1;
+    }
+    this.bg.setSpeed(speed);
+    this.bg.setFramesOpacity(this.rig.mode === 'play' ? 1 : 0);
     if (playing && this.rig.mode === 'title' && this.intro.releaseCamera) this.rig.mode = 'play';
     if (playing && this.intro.busy) p.position.y += (-0.8 - p.position.y) * (1 - Math.exp(-dt * 4));
     this.rig.update(dt, p.position, p.vx);
+    // Darkness overlay follows the heroine on screen.
+    this.lightV.copy(p.position).project(this.rig.camera);
+    this.bg.setLightCenter(this.lightV.x, this.lightV.y, this.viewW / this.viewH);
+    this.bg.update(dt);
     this.intro.update(dt, this.rig.camera);
 
     if (playing) {
       this.hudTimer += dt;
       if (this.hudDirty || this.hudTimer >= HUD_INTERVAL) this.pushHud();
     }
+  }
+
+  private updateBosses(dt: number): void {
+    this.boss.update(dt);
+    this.midBoss?.update(dt);
   }
 
   private pushHud(): void {
@@ -763,11 +1006,12 @@ export class Game {
     h.bombs = this.bombs;
     h.power = this.powerLevel;
     h.powerProgress = this.powerProgress;
+    const mb = this.midBoss;
     if (this.boss.active && this.boss.state !== BossState.Dying) {
       this.hudBoss.hp = this.boss.hp;
       h.boss = this.hudBoss;
-    } else if (this.midBoss.active && this.midBoss.state !== MidBossState.Dying) {
-      this.hudMid.hp = this.midBoss.hp;
+    } else if (mb && mb.active && mb.state !== BossState.Dying) {
+      this.hudMid.hp = mb.hp;
       h.boss = this.hudMid;
     } else {
       h.boss = null;
@@ -807,9 +1051,18 @@ export class Game {
 
   debugState() {
     const b = this.boss;
+    const mb = this.midBoss;
+    const mbActive = !!mb && mb.active;
     return {
       state: this.state,
-      phase: this.phase === 'stage' && this.midBoss.active ? 'midboss' : this.phase,
+      phase: this.phase === 'stage' && mbActive ? 'midboss' : this.phase,
+      stage: this.stageNo,
+      stageId: this.def.id,
+      stageTitle: this.def.title,
+      placeholder: !!this.def.placeholder,
+      stages: this.stageResults.map((r) => ({ ...r })),
+      difficulty: this.difficulty.id,
+      darkness: Math.round(this.bg.darkness * 1000) / 1000,
       score: this.score,
       lives: this.player.lives,
       graze: this.graze,
@@ -817,9 +1070,10 @@ export class Game {
       stageTime: Math.round(this.stage.t * 100) / 100,
       bossHp: b.active ? Math.round(b.hp * 1000) / 1000 : null,
       bossPhase: b.active ? b.phaseIndex : null,
-      midBossHp: this.midBoss.active ? Math.round(this.midBoss.hp * 1000) / 1000 : null,
-      midBossPhase: this.midBoss.active ? this.midBoss.phaseIndex : null,
-      midBossState: this.midBoss.active ? MidBossState[this.midBoss.state] : null,
+      bossState: b.active ? BossState[b.state] : null,
+      midBossHp: mbActive ? Math.round(mb!.hp * 1000) / 1000 : null,
+      midBossPhase: mbActive ? mb!.phaseIndex : null,
+      midBossState: mbActive ? BossState[mb!.state] : null,
       midBossResult: this.midBossResult,
       enemies: this.enemies.activeCount,
       bombs: this.bombs,
@@ -860,74 +1114,72 @@ export class Game {
 
   /** Debug: break the current boss (or mid-boss) phase. */
   breakBossPhase(): void {
-    if (!this.midBoss.forceBreak()) this.boss.forceBreak();
+    if (!this.midBoss?.forceBreak()) this.boss.forceBreak();
+  }
+
+  /** Debug: jump to stage n (starts a run there when not playing; otherwise keeps score / lives / power). */
+  skipToStage(n: number): void {
+    const N = Math.max(1, Math.min(stageCount(), Math.round(n) || 1));
+    if (this.state !== 'playing' && this.state !== 'paused') {
+      this.startStage = N;
+      this.start();
+      return;
+    }
+    if (this.phase === 'dying') return;
+    this.danmaku.stopAllPatterns();
+    this.danmaku.clear();
+    this.enemies.clear();
+    this.ending = null;
+    this.ui.hideStageClear();
+    this.beginStage(N, false);
+  }
+
+  /** Debug: defeat the current stage's boss right now (→ clearing → tally → next stage / ending). */
+  clearStage(): void {
+    if (this.state !== 'playing') return;
+    switch (this.phase) {
+      case 'stage':
+      case 'boss':
+        this.midBoss?.reset();
+        if (this.boss.active) this.boss.reset();
+        this.enemies.clear();
+        this.sfx('bossDown');
+        this.onStageBossDown(true);
+        this.endTimer = 1.2;
+        break;
+      case 'clearing':
+        this.endTimer = 0;
+        break;
+      case 'tally':
+        this.phaseT = TALLY_SEC;
+        break;
+      case 'transition':
+        this.phaseT = TRANSITION_SEC;
+        break;
+      case 'ending':
+        this.ending?.skip();
+        break;
+    }
   }
 
   /* ------------------------------------------------------------------ */
-  /* Mid-boss (StageData.MIDBOSS; the stage timeline waits while it lives) */
+  /* Mid-boss (StageDef.midBoss; the stage timeline waits while it lives) */
   /* ------------------------------------------------------------------ */
 
-  /** 'defeated' / 'escaped' once this run's mid-boss is over (debug / tests). */
+  /** 'defeated' / 'escaped' once this stage's mid-boss is over (debug / tests). */
   private midBossResult: null | 'defeated' | 'escaped' = null;
 
-  private createMidBoss(): MidBoss {
-    return new MidBoss(this.danmaku, this.effects, this.rng, {
-      onPhaseStart: (i) => {
-        const def = MIDBOSS.phases[i];
-        this.ui.announce(def.name, `MID BOSS  ${i + 1} / ${MIDBOSS.phases.length}`);
-        this.hudMid.pattern = def.name;
-        this.hudDirty = true;
-      },
-      onPhaseEnd: (i, broken) => {
-        // Timeout = no bonus at all (it is about to fly away / change phase on its own).
-        // Broken: cancelled bullets already became star items (onBulletCancel).
-        const p = this.midBoss.position;
-        if (broken) {
-          const last = i >= MIDBOSS.phases.length - 1;
-          this.items.magnetAll();
-          if (!last) {
-            this.addScore(SCORE.midBossPhaseBreak);
-            this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.midBossPhase.stars, ITEMS.starValue, 1.8);
-            this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.midBossPhase.power, 1, 1.4);
-          }
-          this.rig.shake(0.14);
-        }
-        this.hudMid.pattern = undefined;
-        this.hudDirty = true;
-        this.effects.ring(p.x, p.y, p.z + 2, broken ? PALETTE.gold : PALETTE.purple, 14, 0.6);
-      },
-      onDefeated: () => {
-        this.sfx('midbossDown');
-        this.rig.shake(0.42, 3);
-        this.danmaku.clear(undefined, undefined, this.items.cancelBullet);
-        this.addScore(SCORE.midBossKill);
-        // Guaranteed big power burst, sucked straight to the heroine.
-        const p = this.midBoss.position;
-        this.items.magnetAll(1.5);
-        this.items.drop(ItemKind.Power, p.x, p.y, p.z, ITEMS.midBossKill.power, 1, 1.6);
-        this.items.drop(ItemKind.Star, p.x, p.y, p.z, ITEMS.midBossKill.stars, ITEMS.starValue, 2);
-        this.ui.announce('MID BOSS DEFEATED', `+${SCORE.midBossKill.toLocaleString()}`);
-        this.endMidBoss('defeated');
-      },
-      onEscaped: () => {
-        this.ui.announce('ESCAPED', 'ルクシアは夜空の彼方へ');
-        this.endMidBoss('escaped');
-      },
-      onHit: (x, y, z, damaged) => {
-        if (damaged) this.addScore(SCORE.midBossHit * this.shots.damage);
-        this.effects.burst(x, y, z + 1, damaged ? PALETTE.cyan : PALETTE.purple, 2, 7, 0.4, 0.25);
-        this.sfx('enemyHit', 0.07);
-      },
-      onBulletCancel: this.items.cancelBullet,
-    });
-  }
-
   private beginMidBoss(): void {
+    const mb = this.midBoss;
+    if (!mb) {
+      this.stage.resume();
+      return;
+    }
     this.enemies.retreatAll();
-    this.midBoss.spawn();
+    mb.spawn();
     this.midBossResult = null;
-    this.audio.playBgm('midboss');
-    this.ui.announce(MIDBOSS.name, MIDBOSS.sub);
+    this.audio.playBgm(this.def.bgm.midboss);
+    this.ui.announce(mb.config.name, mb.config.sub ?? 'MID BOSS');
     this.hudMid.pattern = undefined;
     this.hudDirty = true;
   }
@@ -936,17 +1188,30 @@ export class Game {
     this.midBossResult = result;
     this.hudDirty = true;
     if (this.phase !== 'stage') return; // player died meanwhile
-    this.audio.playBgm('stage');
+    this.audio.playBgm(this.def.bgm.stage);
     this.stage.resume();
   }
 
-  /** Debug: jump to the mid-boss (starts a run when needed). */
+  /** Debug: jump to the mid-boss of the current stage (starts a run when needed). */
   skipToMidBoss(): void {
     if (this.state !== 'playing' && this.state !== 'paused') this.start();
-    if (this.phase !== 'stage' || this.midBoss.active) return;
+    const t = eventTime(this.def, 'midboss');
+    if (this.phase !== 'stage' || !this.midBoss || this.midBoss.active || t < 0) return;
     this.enemies.clear();
     this.danmaku.stopAllPatterns();
     this.danmaku.clear();
-    this.stage.jumpTo(MIDBOSS_SKIP_T);
+    this.stage.jumpTo(t);
+  }
+
+  /**
+   * Hard-mode hook: change the difficulty multipliers (takes effect from the next start();
+   * cached bosses are rebuilt so their HP / intensities pick it up).
+   */
+  setDifficulty(d: Difficulty): void {
+    this.difficulty = d;
+    this.enemies.difficulty = d;
+    for (const b of this.bossCache.values()) b.dispose();
+    this.bossCache.clear();
+    this.applyStageDef(this.def);
   }
 }

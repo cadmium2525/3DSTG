@@ -1,13 +1,14 @@
-/** Runs the STAGE_EVENTS timeline (see StageData.ts). */
-import { STAGE_EVENTS, type IntroEvent, type MarkerEvent, type WaveEvent } from './StageData';
+/** Runs one stage's event timeline (StageDef.events). */
+import type { IntroEvent, MarkerEvent, SceneryEvent, StageEvent, WaveEvent } from './stages/types';
 
 export interface StageHooks {
   wave(w: WaveEvent): void;
   intro(e: IntroEvent): void;
   announce(e: MarkerEvent): void;
-  warning(): void;
+  warning(e: MarkerEvent): void;
   midBoss(): void;
   boss(): void;
+  scenery(e: SceneryEvent): void;
 }
 
 export class Stage {
@@ -15,10 +16,13 @@ export class Stage {
   /** True while the timeline waits for the mid-boss (set by a 'midboss' event, cleared by resume()). */
   waiting = false;
   private idx = 0;
+  private events: readonly StageEvent[] = [];
 
   constructor(private hooks: StageHooks) {}
 
-  reset(): void {
+  /** Restart with a (new) timeline. */
+  reset(events: readonly StageEvent[] = this.events): void {
+    this.events = events;
     this.t = 0;
     this.idx = 0;
     this.waiting = false;
@@ -33,23 +37,25 @@ export class Stage {
   jumpTo(t: number): void {
     this.t = t;
     this.waiting = false;
-    while (this.idx < STAGE_EVENTS.length && STAGE_EVENTS[this.idx].t < t) this.idx++;
+    while (this.idx < this.events.length && this.events[this.idx].t < t) this.idx++;
   }
 
   get finished(): boolean {
-    return this.idx >= STAGE_EVENTS.length;
+    return this.idx >= this.events.length;
   }
 
   update(dt: number): void {
     if (this.waiting) return;
     this.t += dt;
-    while (!this.waiting && this.idx < STAGE_EVENTS.length && STAGE_EVENTS[this.idx].t <= this.t) {
-      const e = STAGE_EVENTS[this.idx++];
+    const ev = this.events;
+    while (!this.waiting && this.idx < ev.length && ev[this.idx].t <= this.t) {
+      const e = ev[this.idx++];
       switch (e.type) {
         case 'wave': this.hooks.wave(e); break;
         case 'intro': this.hooks.intro(e); break;
         case 'announce': this.hooks.announce(e); break;
-        case 'warning': this.hooks.warning(); break;
+        case 'warning': this.hooks.warning(e); break;
+        case 'scenery': this.hooks.scenery(e); break;
         case 'midboss':
           this.waiting = true;
           this.t = e.t;

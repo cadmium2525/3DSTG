@@ -1,30 +1,20 @@
 /**
- * The mid-boss 「硝子蝶 ルクシア」: a crystal butterfly — four shader-drawn glass wings on
+ * Stage 1 mid-boss 「硝子蝶 ルクシア」: a crystal butterfly — four shader-drawn glass wings on
  * hinges (flapping about the body axis), a gold crystal body with antennae, an orrery of
- * orbiting crystal shards and a soft glow. 8 draw calls. Runs the phase list from
- * StageData.MIDBOSS (HP threshold or timeout per phase); after the last phase times out it
- * flies away (no bonus).
+ * orbiting crystal shards and a soft glow. 8 draw calls. The phase state machine lives in
+ * PhasedBoss (after the last phase times out it flies away, no bonus).
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { PALETTE } from '../core/config';
-import type { BulletClearedFn, Danmaku, PatternHandle, Vec3Like } from '../core/types';
-import { MIDBOSS } from './StageData';
-import type { Targets } from './Shots';
-import type { Effects } from './Effects';
-import type { Rng } from './Rng';
+import { PALETTE } from '../../../core/config';
+import { PhasedBoss } from '../../bosses/PhasedBoss';
+import { BossState, type BossConfig, type BossContext } from '../../bosses/BossLike';
 
-export enum MidBossState { Off, Enter, Phase, Breather, Dying, Escape, Done }
-
-export interface MidBossEvents {
-  onPhaseStart(index: number): void;
-  /** broken = HP threshold reached (vs. timeout); cancelled = bullets removed. */
-  onPhaseEnd(index: number, broken: boolean, cancelled: number): void;
-  onDefeated(x: number, y: number, z: number): void;
-  onEscaped(): void;
-  onHit(x: number, y: number, z: number, damaged: boolean): void;
-  /** Called for every bullet removed when a phase ends (bullets → star items). */
-  onBulletCancel?: BulletClearedFn;
+export interface LuxiaConfig extends BossConfig {
+  /** Sway around `position` while fighting. */
+  swayX: number;
+  swayY: number;
+  swayZ: number;
 }
 
 const BURST_COLS = [PALETTE.cyan, PALETTE.purple, PALETTE.pink, PALETTE.gold];
@@ -98,16 +88,7 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-export class MidBoss {
-  readonly group = new THREE.Group();
-  readonly position = new THREE.Vector3(MIDBOSS.position.x, MIDBOSS.position.y, MIDBOSS.position.z);
-  state = MidBossState.Off;
-  hp = 1;
-  phaseIndex = -1;
-  private t = 0;
-  private life = 0;
-  private handles: (PatternHandle | null)[] = [null, null, null];
-  private origin: () => Vec3Like;
+export class LuxiaMidBoss extends PhasedBoss<LuxiaConfig> {
   private body = new THREE.Group();
   private hinges: THREE.Group[] = []; // [foreR, foreL, hindR, hindL]
   private wingUniforms: Record<string, THREE.IUniform>;
@@ -117,9 +98,9 @@ export class MidBoss {
   private shards: THREE.InstancedMesh;
   private shardMat: THREE.MeshStandardMaterial;
   private glowMat: THREE.ShaderMaterial;
-  private flash = 0;
-  private frozen = false;
   private flapPhase = 0;
+  private flapSpeed = 4.2;
+  private flapAmp = 0.42;
   private burstT = 0;
   private dustT = 0;
   private m = new THREE.Matrix4();
@@ -128,9 +109,8 @@ export class MidBoss {
   private s = new THREE.Vector3();
   private v = new THREE.Vector3();
 
-  constructor(private danmaku: Danmaku, private effects: Effects, private rng: Rng, private ev: MidBossEvents) {
-    this.origin = () => this.position;
-    this.group.visible = false;
+  constructor(ctx: BossContext<LuxiaConfig>) {
+    super(ctx);
     this.group.add(this.body);
 
     // Shared animated uniforms (time / flash / fade); per-wing shape uniforms.
@@ -228,203 +208,104 @@ export class MidBoss {
     this.body.add(glow);
   }
 
-  get active(): boolean {
-    return this.state !== MidBossState.Off && this.state !== MidBossState.Done;
-  }
-
-  get vulnerable(): boolean {
-    return this.state === MidBossState.Phase;
-  }
-
-  reset(): void {
-    this.stopPatterns();
-    this.state = MidBossState.Off;
-    this.group.visible = false;
-    this.hp = 1;
-    this.phaseIndex = -1;
-    this.frozen = false;
+  protected onReset(): void {
     this.body.scale.setScalar(1);
   }
 
-  spawn(): void {
-    this.reset();
-    this.state = MidBossState.Enter;
-    this.t = 0;
-    this.life = 0;
-    this.group.visible = true;
+  protected onSpawn(): void {
     this.wingUniforms.uFade.value = 1;
-    this.position.set(MIDBOSS.position.x - 14, MIDBOSS.position.y + 12, -150);
-  }
-
-  private stopPatterns(): void {
-    for (let i = 0; i < this.handles.length; i++) {
-      const h = this.handles[i];
-      if (h) h.stop();
-      this.handles[i] = null;
-    }
-  }
-
-  private startPhase(i: number): void {
-    this.phaseIndex = i;
-    this.state = MidBossState.Phase;
-    this.t = 0;
-    const def = MIDBOSS.phases[i];
-    for (let k = 0; k < def.patterns.length; k++) {
-      const p = def.patterns[k];
-      this.handles[k] = this.danmaku.startPattern(p.id, {
-        origin: this.origin, duration: def.timeout, intensity: p.intensity, seed: this.rng.int(),
-      });
-    }
-    this.ev.onPhaseStart(i);
-  }
-
-  private endPhase(broken: boolean): void {
-    this.stopPatterns();
-    const cancelled = this.danmaku.clear(undefined, undefined, broken ? this.ev.onBulletCancel : undefined);
-    this.ev.onPhaseEnd(this.phaseIndex, broken, cancelled);
-    this.t = 0;
-    if (this.phaseIndex >= MIDBOSS.phases.length - 1) {
-      if (broken) {
-        this.state = MidBossState.Dying;
-        this.burstT = 0;
-      } else {
-        this.state = MidBossState.Escape;
-      }
-    } else {
-      this.state = MidBossState.Breather;
-    }
-  }
-
-  damage(amount: number, x: number, y: number, z: number): void {
-    const ok = this.vulnerable;
-    if (ok) {
-      const floor = MIDBOSS.phases[this.phaseIndex].hpEnd;
-      this.hp = Math.max(floor, this.hp - amount / MIDBOSS.maxHp);
-      this.flash = Math.min(1, this.flash + 0.12);
-    }
-    this.ev.onHit(x, y, z, ok);
-  }
-
-  addTargets(t: Targets, id: number): void {
-    if (!this.active || this.state === MidBossState.Dying || this.state === MidBossState.Escape) return;
-    if (this.state === MidBossState.Enter && this.t < MIDBOSS.enterSec * 0.6) return;
-    t.add(id, this.position.x, this.position.y, this.position.z + 1, MIDBOSS.hitRadius);
-  }
-
-  /** Debug: drop HP to the current phase's threshold. */
-  forceBreak(): boolean {
-    if (this.state !== MidBossState.Phase) return false;
-    this.hp = MIDBOSS.phases[this.phaseIndex].hpEnd;
-    return true;
-  }
-
-  /** Stop patterns and freeze the state machine (player died); visuals keep animating. */
-  freeze(): void {
-    this.stopPatterns();
-    this.frozen = true;
+    const P = this.config.position;
+    this.position.set(P.x - 14, P.y + 12, -150);
   }
 
   update(dt: number): void {
-    if (!this.active) return;
-    this.life += dt;
-    if (!this.frozen) this.t += dt;
-    const P = MIDBOSS.position;
-    let flapSpeed = 4.2;
-    let flapAmp = 0.42;
+    this.flapSpeed = 4.2;
+    this.flapAmp = 0.42;
+    super.update(dt);
+  }
 
-    switch (this.frozen ? MidBossState.Off : this.state) {
-      case MidBossState.Enter: {
-        // Swoop in on a curve from the upper left.
-        const u = Math.min(1, this.t / MIDBOSS.enterSec);
-        const e = 1 - Math.pow(1 - u, 3);
-        this.position.set(P.x + (1 - e) * -14 + Math.sin(e * Math.PI) * 6, P.y + (1 - e) * 12, -150 + (P.z + 150) * e);
-        flapSpeed = 7;
-        flapAmp = 0.55;
-        if (u >= 1) this.startPhase(0);
-        break;
-      }
-      case MidBossState.Phase:
-      case MidBossState.Breather: {
-        // Lazy figure-eight drift; a little faster and wider in the second phase.
-        const k = this.phaseIndex >= 1 ? 1.25 : 1;
-        const L = this.life * k;
-        const tx = P.x + Math.sin(L * 0.55) * MIDBOSS.swayX;
-        const ty = P.y + Math.sin(L * 1.1) * MIDBOSS.swayY;
-        const tz = P.z + Math.sin(L * 0.37) * MIDBOSS.swayZ;
-        const f = 1 - Math.exp(-dt * 3);
-        this.position.x += (tx - this.position.x) * f;
-        this.position.y += (ty - this.position.y) * f;
-        this.position.z += (tz - this.position.z) * f;
-        if (this.state === MidBossState.Phase) {
-          const def = MIDBOSS.phases[this.phaseIndex];
-          flapSpeed = this.phaseIndex >= 1 ? 5.4 : 4.2;
-          for (let i = 0; i < def.patterns.length; i++) {
-            const h = this.handles[i];
-            if (h && h.done && this.t < def.timeout - 1) {
-              this.handles[i] = this.danmaku.startPattern(def.patterns[i].id, {
-                origin: this.origin, duration: def.timeout - this.t, intensity: def.patterns[i].intensity, seed: this.rng.int(),
-              });
-            }
-          }
-          if (this.hp <= def.hpEnd + 1e-6) this.endPhase(true);
-          else if (this.t >= def.timeout) this.endPhase(false);
-        } else {
-          flapSpeed = 2.4;
-          flapAmp = 0.25;
-          if (this.t >= MIDBOSS.breatherSec) this.startPhase(this.phaseIndex + 1);
-        }
-        break;
-      }
-      case MidBossState.Dying: {
-        flapSpeed = 16;
-        flapAmp = 0.6 * (1 - this.t / MIDBOSS.deathSec);
-        this.burstT -= dt;
-        if (this.burstT <= 0) {
-          this.burstT = 0.1;
-          const side = this.rng.next() < 0.5 ? -1 : 1;
-          this.effects.burst(
-            this.position.x + side * (1 + this.rng.next() * 6), this.position.y + (this.rng.next() - 0.4) * 7, this.position.z + 1.5,
-            BURST_COLS[(this.rng.next() * 4) | 0], 20, 11, 1.1, 0.8,
-          );
-        }
-        this.flash = 0.6 + Math.sin(this.t * 38) * 0.4;
-        this.wingUniforms.uFade.value = Math.max(0, 1 - this.t / MIDBOSS.deathSec);
-        this.position.y -= dt * 1.2;
-        this.body.scale.setScalar(1 + this.t * 0.12);
-        if (this.t >= MIDBOSS.deathSec) {
-          const p = this.position;
-          this.effects.burst(p.x, p.y, p.z + 2, PALETTE.white, 90, 26, 1.8, 1.3);
-          this.effects.burst(p.x - 4, p.y + 1, p.z + 2, PALETTE.cyan, 50, 18, 1.4, 1.1);
-          this.effects.burst(p.x + 4, p.y + 1, p.z + 2, PALETTE.purple, 50, 18, 1.4, 1.1);
-          this.effects.burst(p.x, p.y, p.z + 2, PALETTE.gold, 40, 14, 1.2, 1.2);
-          this.effects.ring(p.x, p.y, p.z + 3, PALETTE.white, 24, 0.8);
-          this.effects.ring(p.x, p.y, p.z + 3, PALETTE.pink, 15, 0.65);
-          this.state = MidBossState.Done;
-          this.group.visible = false;
-          this.body.scale.setScalar(1);
-          this.ev.onDefeated(p.x, p.y, p.z);
-        }
-        break;
-      }
-      case MidBossState.Escape: {
-        const u = Math.min(1, this.t / 1.8);
-        this.position.x += dt * 8 * u;
-        this.position.y += dt * 12 * u;
-        this.position.z -= dt * 45 * u;
-        flapSpeed = 9;
-        flapAmp = 0.6;
-        this.wingUniforms.uFade.value = 1 - u;
-        if (u >= 1) {
-          this.state = MidBossState.Done;
-          this.group.visible = false;
-          this.ev.onEscaped();
-        }
-        break;
-      }
+  protected moveEnter(u: number): void {
+    // Swoop in on a curve from the upper left.
+    const P = this.config.position;
+    const e = 1 - Math.pow(1 - u, 3);
+    this.position.set(P.x + (1 - e) * -14 + Math.sin(e * Math.PI) * 6, P.y + (1 - e) * 12, -150 + (P.z + 150) * e);
+    this.flapSpeed = 7;
+    this.flapAmp = 0.55;
+  }
+
+  /** Lazy figure-eight drift; a little faster and wider in the second phase. */
+  private sway(dt: number): void {
+    const C = this.config;
+    const P = C.position;
+    const k = this.phaseIndex >= 1 ? 1.25 : 1;
+    const L = this.life * k;
+    const tx = P.x + Math.sin(L * 0.55) * C.swayX;
+    const ty = P.y + Math.sin(L * 1.1) * C.swayY;
+    const tz = P.z + Math.sin(L * 0.37) * C.swayZ;
+    const f = 1 - Math.exp(-dt * 3);
+    this.position.x += (tx - this.position.x) * f;
+    this.position.y += (ty - this.position.y) * f;
+    this.position.z += (tz - this.position.z) * f;
+  }
+
+  protected movePhase(dt: number): void {
+    this.sway(dt);
+    this.flapSpeed = this.phaseIndex >= 1 ? 5.4 : 4.2;
+  }
+
+  protected moveBreather(dt: number): void {
+    this.sway(dt);
+    this.flapSpeed = 2.4;
+    this.flapAmp = 0.25;
+  }
+
+  protected onDeathStart(): void {
+    this.burstT = 0;
+  }
+
+  protected updateDying(dt: number): boolean {
+    const deathSec = this.config.deathSec;
+    this.flapSpeed = 16;
+    this.flapAmp = 0.6 * (1 - this.t / deathSec);
+    this.burstT -= dt;
+    if (this.burstT <= 0) {
+      this.burstT = 0.1;
+      const side = this.rng.next() < 0.5 ? -1 : 1;
+      this.effects.burst(
+        this.position.x + side * (1 + this.rng.next() * 6), this.position.y + (this.rng.next() - 0.4) * 7, this.position.z + 1.5,
+        BURST_COLS[(this.rng.next() * 4) | 0], 20, 11, 1.1, 0.8,
+      );
     }
+    this.flash = 0.6 + Math.sin(this.t * 38) * 0.4;
+    this.wingUniforms.uFade.value = Math.max(0, 1 - this.t / deathSec);
+    this.position.y -= dt * 1.2;
+    this.body.scale.setScalar(1 + this.t * 0.12);
+    if (this.t < deathSec) return false;
+    const p = this.position;
+    this.effects.burst(p.x, p.y, p.z + 2, PALETTE.white, 90, 26, 1.8, 1.3);
+    this.effects.burst(p.x - 4, p.y + 1, p.z + 2, PALETTE.cyan, 50, 18, 1.4, 1.1);
+    this.effects.burst(p.x + 4, p.y + 1, p.z + 2, PALETTE.purple, 50, 18, 1.4, 1.1);
+    this.effects.burst(p.x, p.y, p.z + 2, PALETTE.gold, 40, 14, 1.2, 1.2);
+    this.effects.ring(p.x, p.y, p.z + 3, PALETTE.white, 24, 0.8);
+    this.effects.ring(p.x, p.y, p.z + 3, PALETTE.pink, 15, 0.65);
+    this.body.scale.setScalar(1);
+    return true;
+  }
 
-    if (this.state === MidBossState.Done) return;
+  protected updateEscape(dt: number): boolean {
+    const u = Math.min(1, this.t / 1.8);
+    this.position.x += dt * 8 * u;
+    this.position.y += dt * 12 * u;
+    this.position.z -= dt * 45 * u;
+    this.flapSpeed = 9;
+    this.flapAmp = 0.6;
+    this.wingUniforms.uFade.value = 1 - u;
+    return u >= 1;
+  }
 
+  protected animate(dt: number): void {
+    const flapSpeed = this.flapSpeed;
+    const flapAmp = this.flapAmp;
     // Visual animation.
     this.group.position.copy(this.position);
     this.flash = Math.max(0, this.flash - dt * 3.5);
@@ -464,7 +345,7 @@ export class MidBoss {
     this.shards.instanceMatrix.needsUpdate = true;
 
     // Glitter dust shed from the wingtips while fighting.
-    if (this.state === MidBossState.Phase || this.state === MidBossState.Enter) {
+    if (this.state === BossState.Phase || this.state === BossState.Enter) {
       this.dustT -= dt;
       if (this.dustT <= 0) {
         this.dustT = 0.09;

@@ -1,5 +1,6 @@
 /**
- * BLOOM DIVE — DOM overlay UI (title, HUD, pause, settings, result).
+ * BLOOM DIVE — DOM overlay UI (title, HUD, pause, settings, stage title card, stage-clear
+ * tally, result).
  *
  * Input model: the overlay root is `pointer-events: none`; only buttons / panels
  * receive input, so drags anywhere else reach the game. Button presses stop
@@ -7,7 +8,7 @@
  */
 import './style.css';
 import { PLAYER } from '../core/config';
-import type { GameUI, HudData, ResultData, SaveStore, Settings, UiCallbacks } from '../core/types';
+import type { GameUI, HudData, ResultData, SaveStore, Settings, StageClearData, UiCallbacks } from '../core/types';
 import {
   BARRIER_PIP,
   BOW,
@@ -234,12 +235,25 @@ const RESULT_HTML = `
       <div><dt>TIME</dt><dd class="bd-r-time">0:00.0</dd></div>
       <div><dt>残機</dt><dd class="bd-r-lives"></dd></div>
     </dl>
+    <ol class="bd-r-stages"></ol>
     <div class="bd-result-btns">
       <button class="bd-btn bd-retry" type="button"><span>もう一度</span></button>
       <button class="bd-btn bd-btn-sub bd-totitle" type="button">タイトルへ</button>
     </div>
   </div>
 `;
+
+const TALLY_HTML = `
+  <div class="bd-tally-head">
+    <span class="bd-tally-no">STAGE 1</span>
+    <b class="bd-tally-title"></b>
+    <span class="bd-tally-clear">CLEAR</span>
+  </div>
+  <dl class="bd-tally-rows"></dl>
+  <div class="bd-tally-total"><span>TOTAL</span><b class="bd-tally-sum">0</b></div>
+`;
+
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 /* ---------------- factory ---------------- */
 
@@ -253,7 +267,9 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const title = el('section', 'bd-screen bd-title', TITLE_HTML);
   const hud = el('section', 'bd-screen bd-hud', HUD_HTML);
   const ann = el('div', 'bd-ann', '<span class="bd-ann-line"></span><b class="bd-ann-text"></b><span class="bd-ann-sub"></span><span class="bd-ann-line"></span>');
-  col.append(title, hud, ann);
+  const card = el('div', 'bd-stagecard', '<span class="bd-sc-no"></span><b class="bd-sc-title"></b><span class="bd-sc-sub"></span>');
+  const tally = el('div', 'bd-tally', TALLY_HTML);
+  col.append(title, hud, ann, card, tally);
   const result = el('section', 'bd-modal bd-result', RESULT_HTML);
   const pause = el('section', 'bd-modal bd-pause', PAUSE_HTML);
   const settings = el('section', 'bd-modal bd-settings', SETTINGS_HTML);
@@ -412,6 +428,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
   const rGraze = q(result, '.bd-r-graze');
   const rTime = q(result, '.bd-r-time');
   const rLives = q(result, '.bd-r-lives');
+  const rStages = q(result, '.bd-r-stages');
   let countRaf = 0;
   let resultAt = 0;
   // Ignore result buttons briefly so a frantic drag/tap at game end doesn't skip the screen.
@@ -423,6 +440,20 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     if (screen === 'result' && armed()) cb.onBackToTitle();
   });
 
+  /* ---- stage title card / tally ---- */
+  const scNo = q(card, '.bd-sc-no');
+  const scTitle = q(card, '.bd-sc-title');
+  const scSub = q(card, '.bd-sc-sub');
+  const tNo = q(tally, '.bd-tally-no');
+  const tTitle = q(tally, '.bd-tally-title');
+  const tRows = q(tally, '.bd-tally-rows');
+  const tSum = q(tally, '.bd-tally-sum');
+  let tallyRaf = 0;
+  const hideTally = () => {
+    cancelAnimationFrame(tallyRaf);
+    tally.classList.remove('is-on');
+  };
+
   /* ---- announce / feedback ---- */
   const annText = q(ann, '.bd-ann-text');
   const annSub = q(ann, '.bd-ann-sub');
@@ -432,6 +463,7 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
     show(title, s === 'title');
     show(hud, s === 'hud');
     show(result, s === 'result');
+    if (s !== 'hud') hideTally();
     if (s !== 'title') show(settings, false);
     if (s !== 'hud') {
       paused = false;
@@ -531,7 +563,17 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
       resultAt = performance.now();
       result.classList.toggle('is-clear', r.cleared);
       result.classList.toggle('is-over', !r.cleared);
-      rTitle.textContent = r.cleared ? 'STAGE CLEAR' : 'GAME OVER';
+      rTitle.textContent = r.allClear ? 'ALL CLEAR' : r.cleared ? 'STAGE CLEAR' : 'GAME OVER';
+      const st = r.stages ?? [];
+      rStages.innerHTML = st
+        .map(
+          (x) =>
+            `<li class="${x.cleared ? 'is-clear' : 'is-fail'}"><span class="bd-rs-no">STAGE ${x.number}</span>` +
+            `<span class="bd-rs-title">${esc(x.title)}</span><span class="bd-rs-mark">${x.cleared ? 'CLEAR' : '—'}</span>` +
+            `<b class="bd-rs-score">${fmt(x.score)}</b></li>`,
+        )
+        .join('');
+      rStages.style.display = st.length > 1 || (st.length === 1 && !r.cleared && st[0].number > 1) ? '' : 'none';
       rRecord.classList.remove('is-on');
       rHi.textContent = fmt(Math.max(r.hiScore, r.newRecord ? r.score : 0));
       rGraze.textContent = fmt(r.graze);
@@ -563,6 +605,64 @@ export function createUI(root: HTMLElement, cb: UiCallbacks, save: SaveStore): G
       paused = p && screen === 'hud';
       show(pause, paused);
       if (paused) sync();
+    },
+
+    stageTitle(stage: number, titleText: string, subtitle: string) {
+      scNo.textContent = `STAGE ${stage}`;
+      scTitle.textContent = titleText;
+      scSub.textContent = subtitle;
+      play(
+        card,
+        [
+          { opacity: 0, transform: 'translate(-50%, 8px)', filter: 'blur(8px)', letterSpacing: '0.6em', offset: 0 },
+          { opacity: 1, transform: 'translate(-50%, 0)', filter: 'blur(0px)', letterSpacing: '0.32em', offset: 0.16 },
+          { opacity: 1, transform: 'translate(-50%, 0)', filter: 'blur(0px)', letterSpacing: '0.28em', offset: 0.82 },
+          { opacity: 0, transform: 'translate(-50%, -10px)', filter: 'blur(6px)', letterSpacing: '0.24em', offset: 1 },
+        ],
+        { duration: 3000, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'both' },
+      );
+    },
+
+    showStageClear(d: StageClearData) {
+      cancelAnimationFrame(tallyRaf);
+      tNo.textContent = `STAGE ${d.stage}`;
+      tTitle.textContent = d.title + (d.placeholder ? '（仮）' : '');
+      const rows: [string, string, number][] = [
+        ['STAGE SCORE', '', d.stageScore],
+        ['GRAZE', '', d.graze],
+        ['ITEMS', `★ ${fmt(d.stars)}  ◆ ${fmt(d.orbs)}`, -1],
+        ...d.bonus.map((b): [string, string, number] => [b.label, '', b.value]),
+      ];
+      tRows.innerHTML = rows
+        .map(
+          ([k, txt, v], i) =>
+            `<div style="animation-delay:${0.25 + i * 0.16}s"${i >= 3 ? ' class="is-bonus"' : ''}><dt>${esc(k)}</dt>` +
+            `<dd data-v="${v}">${v < 0 ? esc(txt) : i >= 3 ? '+0' : '0'}</dd></div>`,
+        )
+        .join('');
+      const cells = Array.from(tRows.querySelectorAll<HTMLElement>('dd[data-v]')).filter((c) => Number(c.dataset.v) >= 0);
+      const startTotal = d.total - d.bonus.reduce((a, b) => a + b.value, 0);
+      tSum.textContent = fmt(startTotal);
+      tally.classList.remove('is-on');
+      void tally.offsetWidth; // restart the CSS entry animation
+      tally.classList.add('is-on');
+      const t0 = performance.now() + 300;
+      const dur = 1300;
+      const stepFn = (now: number) => {
+        const k = Math.min(1, Math.max(0, (now - t0) / dur));
+        const e = 1 - Math.pow(1 - k, 3);
+        cells.forEach((c, i) => {
+          const v = Math.floor(Number(c.dataset.v) * e);
+          c.textContent = (i >= 2 ? '+' : '') + fmt(v);
+        });
+        tSum.textContent = fmt(startTotal + (d.total - startTotal) * e);
+        if (k < 1) tallyRaf = requestAnimationFrame(stepFn);
+      };
+      tallyRaf = requestAnimationFrame(stepFn);
+    },
+
+    hideStageClear() {
+      hideTally();
     },
 
     announce(text: string, sub?: string) {

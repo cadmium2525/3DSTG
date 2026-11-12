@@ -1152,6 +1152,228 @@
   }
 }
 
+
+/* ---------------------------------------------------------------- */
+/* stage title card / stage-clear tally                              */
+/* ---------------------------------------------------------------- */
+
+.bd-stagecard {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  width: 96%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 1.4);
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 0);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.bd-sc-no {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 3.4);
+  font-weight: 300;
+  letter-spacing: inherit;
+  margin-right: -0.3em;
+  color: #fff;
+  text-shadow: 0 0 calc(var(--u) * 2.4) rgba(160, 220, 255, 0.85);
+}
+.bd-sc-title {
+  font-size: calc(var(--u) * 10.5);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  margin-right: -0.22em;
+  line-height: 1.15;
+  color: #fff;
+  text-shadow: 0 0 calc(var(--u) * 3) rgba(255, 190, 120, 0.85), 0 0 calc(var(--u) * 9) rgba(157, 107, 255, 0.75),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+}
+.bd-sc-sub {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.8);
+  letter-spacing: 0.5em;
+  margin-right: -0.5em;
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(255, 209, 102, 0.7), 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.bd-stagecard::before,
+.bd-stagecard::after {
+  content: '';
+  width: 64%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 230, 200, 0.9), transparent);
+}
+
+.bd-tally {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: calc(var(--colw) * 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 2.6);
+  padding: calc(var(--u) * 5) calc(var(--u) * 5.5);
+  border-radius: calc(var(--u) * 5);
+  background: linear-gradient(165deg, rgba(52, 44, 120, 0.5), rgba(14, 10, 40, 0.62));
+  box-shadow: 0 0 0 1px var(--glass-line) inset, 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 40px rgba(255, 200, 120, 0.12);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 12px) scale(0.97);
+  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 0.45s;
+  pointer-events: none;
+}
+.bd-tally.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s;
+}
+.bd-tally::before {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 220, 160, 0.95), rgba(255, 170, 220, 0.9), transparent);
+}
+.bd-tally-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.6);
+}
+.bd-tally-no {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.8);
+  letter-spacing: 0.4em;
+  margin-right: -0.4em;
+  color: var(--ink-dim);
+}
+.bd-tally-title {
+  font-size: calc(var(--u) * 6.2);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
+  color: #fff;
+  text-shadow: 0 0 calc(var(--u) * 2.6) rgba(157, 107, 255, 0.8);
+}
+.bd-tally-clear {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 5.4);
+  font-weight: 300;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em;
+  background-image: linear-gradient(180deg, #fff8e0 10%, var(--gold) 60%, #e89a3c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 calc(var(--u) * 2) rgba(255, 209, 102, 0.6));
+}
+.bd-tally-rows {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.6);
+}
+.bd-tally-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: calc(var(--u) * 1.1) 0;
+  border-bottom: 1px solid rgba(186, 204, 255, 0.12);
+  opacity: 0;
+}
+.bd-tally.is-on .bd-tally-rows > div {
+  animation: bd-fadein 0.35s ease both;
+}
+.bd-tally-rows dt {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.7);
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+.bd-tally-rows dd {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 4.2);
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.bd-tally-rows .is-bonus dd {
+  color: #fff1cf;
+}
+.bd-tally-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: calc(var(--u) * 1);
+}
+.bd-tally-total span {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 3);
+  letter-spacing: 0.3em;
+  color: var(--gold);
+}
+.bd-tally-total b {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 7);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 0 calc(var(--u) * 3) rgba(79, 232, 255, 0.6);
+}
+
+/* per-stage breakdown on the result */
+.bd-r-stages {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.4);
+  margin: calc(var(--u) * -1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.bd-r-stages li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: baseline;
+  gap: calc(var(--u) * 2);
+  padding: calc(var(--u) * 0.9) calc(var(--u) * 1);
+  border-bottom: 1px solid rgba(186, 204, 255, 0.1);
+  font-size: calc(var(--u) * 3.2);
+}
+.bd-rs-no {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.4);
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+.bd-rs-title {
+  text-align: left;
+  color: #fff;
+}
+.bd-rs-mark {
+  font-family: var(--font-latin);
+  font-size: calc(var(--u) * 2.3);
+  letter-spacing: 0.14em;
+  color: var(--gold);
+}
+.is-fail .bd-rs-mark {
+  color: var(--ink-dim);
+}
+.bd-rs-score {
+  font-family: var(--font-latin);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  min-width: calc(var(--u) * 20);
+  text-align: right;
+  color: #fff;
+}
+
 /* ---------------------------------------------------------------- */
 /* short / landscape screens: tighten vertical rhythm                */
 /* ---------------------------------------------------------------- */

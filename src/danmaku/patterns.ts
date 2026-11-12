@@ -4,7 +4,7 @@
  * depend on the frame rate. Patterns are designed in terms of their cross-section on the play
  * plane (where and when bullets cross z = 0); the 3D flight shape is decoration on top.
  */
-import { FIELD, PALETTE } from '../core/config';
+import { CAMERA, FIELD, PALETTE } from '../core/config';
 import type { PatternHandle, PatternId, PatternOptions } from '../core/types';
 import type { BulletPool, SpawnParams } from './pool';
 
@@ -589,6 +589,92 @@ class WingSweep extends Emitter {
   }
 }
 
+/* ------------------------------------------------- 彗星の尾 comet trail (stage 1 enemy) */
+
+/**
+ * Cross-section: single slow bullets landing along the comet's on-screen path (its emitter
+ * position projected onto the play plane as seen from the camera), so a streaking comet draws a
+ * short dotted line that arrives point by point. Cross it where the line has already passed.
+ */
+class CometTrail extends Emitter {
+  private count = 0;
+
+  constructor(opts: PatternOptions) {
+    super(opts, 0.05);
+  }
+
+  protected emit(_te: number, ctx: EmitCtx): number {
+    const sp = ctx.sp;
+    const I = this.I;
+    const k = CAMERA.distance / (CAMERA.distance - sp.oz);
+    const c = this.count++;
+    const jit = (this.rng() - 0.5) * 0.24;
+    const x = sp.ox * k + jit, y = sp.oy * k - jit;
+    if (inClip(x, y)) {
+      sp.cx = x; sp.cy = y;
+      sp.r0 = 0; sp.ep = 1; sp.om = 0;
+      sp.T = lerp(4.7, 4.1, I);
+      sp.accel = 1.25;
+      sp.size = c % 3 === 0 ? 1.05 : 0.85;
+      setColor(sp, c % 3 === 0 ? COL.white : COL.cyan, c % 3 === 0 ? 0 : 0.2);
+      spawnPolar(ctx, 0, 0);
+    }
+    return lerp(0.25, 0.18, I) / Math.sqrt(ctx.density);
+  }
+}
+
+/* ------------------------------------------------- 星海月の輪 jelly ring (stage 1 enemy) */
+
+/**
+ * Cross-section: one small ring (two at higher intensity, the second wider and half a step
+ * rotated) centred near the player, pulled a little toward the jellyfish. Standing still is
+ * usually safe inside; the gaps between ring bullets are wide when she has to cross.
+ */
+class JellyRing extends Emitter {
+  private ring = 0;
+  private cx = 0;
+  private cy = 0;
+  private phase = 0;
+  private dir = 1;
+
+  constructor(opts: PatternOptions) {
+    super(opts, 0.15);
+  }
+
+  protected emit(_te: number, ctx: EmitCtx): number {
+    const sp = ctx.sp;
+    const I = this.I;
+    if (this.ring === 0) {
+      const k = CAMERA.distance / (CAMERA.distance - sp.oz);
+      const jx = sp.ox * k, jy = sp.oy * k;
+      this.cx = Math.max(-FIELD.halfW, Math.min(FIELD.halfW, lerp(ctx.px, jx, 0.3)));
+      this.cy = Math.max(-FIELD.halfH, Math.min(FIELD.halfH, lerp(ctx.py, jy, 0.3)));
+      this.phase = this.rng() * TAU;
+      this.dir = this.rng() < 0.5 ? -1 : 1;
+    }
+    const n = Math.max(7, Math.round(lerp(9, 12, I) * Math.sqrt(ctx.density)));
+    const R = lerp(1.3, 1.45, I) + this.ring * 0.75;
+    sp.cx = this.cx; sp.cy = this.cy;
+    sp.r0 = 0.35; sp.ep = 0.8;
+    sp.om = this.dir * 0.35;
+    sp.T = lerp(3.9, 3.5, I);
+    sp.accel = 1.8;
+    sp.size = 1.05;
+    const ph = this.phase + this.ring * (Math.PI / n);
+    for (let j = 0; j < n; j++) {
+      const th = ph + (j * TAU) / n;
+      const x = this.cx + R * Math.cos(th), y = this.cy + R * Math.sin(th);
+      if (!inClip(x, y)) continue;
+      setColor(sp, j % 2 === 0 ? COL.pink : COL.purple, 0.12);
+      spawnPolar(ctx, R, th);
+    }
+    this.ring++;
+    if (this.ring < (I >= 0.5 ? 2 : 1)) return 0.32;
+    this.ring = 0;
+    return 1e3;
+  }
+}
+
 export function createEmitter(id: PatternId, opts: PatternOptions): Emitter {
   switch (id) {
     case 'spiralCorridor': return new SpiralCorridor(opts);
@@ -597,5 +683,7 @@ export function createEmitter(id: PatternId, opts: PatternOptions): Emitter {
     case 'constellationRain': return new ConstellationRain(opts);
     case 'aimedBurst': return new AimedBurst(opts);
     case 'wingSweep': return new WingSweep(opts);
+    case 'cometTrail': return new CometTrail(opts);
+    case 'jellyRing': return new JellyRing(opts);
   }
 }
