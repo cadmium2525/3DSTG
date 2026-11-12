@@ -5,7 +5,29 @@ import * as THREE from 'three';
  * head: canvas centre = centre of the head, canvas edges = head silhouette.
  * Transparent everywhere except eyes, brows, mouth and blush.
  */
-export function createFaceTexture(): THREE.Texture {
+export interface FaceStyle {
+  /** Iris gradient top / middle / bottom, iris rim, pupil. */
+  iris: [string, string, string];
+  rim: string;
+  pupil: string;
+  sclera: string;
+  lash: string;
+  blush: number;
+  /** Mouth curve: positive = smile, negative = slight frown. */
+  smile: number;
+}
+
+export const HEROINE_FACE: FaceStyle = {
+  iris: ['#12307f', '#2f6fe0', '#8fd6ff'],
+  rim: '#0d2466',
+  pupil: '#0a1c55',
+  sclera: '#ffffff',
+  lash: '#4a2c22',
+  blush: 0.42,
+  smile: 1,
+};
+
+export function createFaceTexture(style: FaceStyle = HEROINE_FACE): THREE.Texture {
   const S = 512;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = S;
@@ -22,7 +44,7 @@ export function createFaceTexture(): THREE.Texture {
     const cx = X(sx * 0.5);
     const cy = Y(-0.36);
     const grad = g.createRadialGradient(cx, cy, 0, cx, cy, L(0.2));
-    grad.addColorStop(0, 'rgba(255,128,128,0.42)');
+    grad.addColorStop(0, `rgba(255,128,128,${style.blush})`);
     grad.addColorStop(1, 'rgba(255,128,128,0)');
     g.fillStyle = grad;
     g.fillRect(cx - L(0.25), cy - L(0.25), L(0.5), L(0.5));
@@ -40,7 +62,7 @@ export function createFaceTexture(): THREE.Texture {
     // Sclera
     g.beginPath();
     g.ellipse(0, 0, rw * 1.04, rh, 0, 0, Math.PI * 2);
-    g.fillStyle = '#ffffff';
+    g.fillStyle = style.sclera;
     g.fill();
     g.save();
     g.clip();
@@ -57,21 +79,21 @@ export function createFaceTexture(): THREE.Texture {
     const irw = rw * 0.82;
     const irh = rh * 0.9;
     const iris = g.createLinearGradient(0, -irh, 0, irh);
-    iris.addColorStop(0, '#12307f');
-    iris.addColorStop(0.45, '#2f6fe0');
-    iris.addColorStop(1, '#8fd6ff');
+    iris.addColorStop(0, style.iris[0]);
+    iris.addColorStop(0.45, style.iris[1]);
+    iris.addColorStop(1, style.iris[2]);
     g.beginPath();
     g.ellipse(ix, rh * 0.06, irw, irh, 0, 0, Math.PI * 2);
     g.fillStyle = iris;
     g.fill();
     g.lineWidth = L(0.012);
-    g.strokeStyle = '#0d2466';
+    g.strokeStyle = style.rim;
     g.stroke();
 
     // Pupil
     g.beginPath();
     g.ellipse(ix, rh * 0.02, irw * 0.42, irh * 0.5, 0, 0, Math.PI * 2);
-    g.fillStyle = '#0a1c55';
+    g.fillStyle = style.pupil;
     g.fill();
 
     // Lower glow
@@ -93,7 +115,7 @@ export function createFaceTexture(): THREE.Texture {
     // Upper lash line (thick, flicks outward)
     g.lineCap = 'round';
     g.lineJoin = 'round';
-    g.strokeStyle = '#4a2c22';
+    g.strokeStyle = style.lash;
     g.lineWidth = L(0.042);
     g.beginPath();
     g.moveTo(-sx * rw * 1.02, -rh * 0.52);
@@ -137,7 +159,7 @@ export function createFaceTexture(): THREE.Texture {
   g.lineCap = 'round';
   g.beginPath();
   g.moveTo(X(-0.085), Y(-0.565));
-  g.quadraticCurveTo(X(0), Y(-0.64), X(0.085), Y(-0.565));
+  g.quadraticCurveTo(X(0), Y(-0.565 - 0.075 * style.smile), X(0.085), Y(-0.565));
   g.stroke();
 
   const tex = new THREE.CanvasTexture(canvas);
