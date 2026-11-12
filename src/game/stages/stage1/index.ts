@@ -111,7 +111,7 @@ export const STAGE1_BOSS: BossConfig = {
         { id: 'constellationRain', intensity: 0.45 },
       ],
       // HARD: this pair is already near the bullet pool limit — only ×1.1 here.
-      hard: { bullet: 1.1 },
+      hard: { bullet: 1.05 },
       hpEnd: 0,
       timeout: 20,
     },
